@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/YangYuS8/codyssey/backend/internal/config"
+	"github.com/YangYuS8/codyssey/backend/internal/server"
 	"github.com/joho/godotenv"
-	"github.com/your-org/codyssey/backend/internal/config"
-	"github.com/your-org/codyssey/backend/internal/server"
 )
 
 // buildVersion 通过 -ldflags "-X main.buildVersion=xxxx" 注入

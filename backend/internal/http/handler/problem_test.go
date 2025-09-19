@@ -8,13 +8,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/YangYuS8/codyssey/backend/internal/auth"
+	"github.com/YangYuS8/codyssey/backend/internal/domain"
+	"github.com/YangYuS8/codyssey/backend/internal/http/handler"
+	"github.com/YangYuS8/codyssey/backend/internal/repository"
+	"github.com/YangYuS8/codyssey/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/your-org/codyssey/backend/internal/auth"
-	"github.com/your-org/codyssey/backend/internal/domain"
-	"github.com/your-org/codyssey/backend/internal/http/handler"
-	"github.com/your-org/codyssey/backend/internal/repository"
-	"github.com/your-org/codyssey/backend/internal/service"
 )
 
 type memoryRepo struct { items []domain.Problem }

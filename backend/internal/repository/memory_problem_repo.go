@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/your-org/codyssey/backend/internal/domain"
+	"github.com/YangYuS8/codyssey/backend/internal/domain"
 )
 
 type MemoryProblemRepository struct {

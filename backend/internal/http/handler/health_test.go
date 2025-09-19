@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/YangYuS8/codyssey/backend/internal/http/handler"
 	"github.com/gin-gonic/gin"
-	"github.com/your-org/codyssey/backend/internal/http/handler"
 )
 
 type fakeHealth struct{ up bool }

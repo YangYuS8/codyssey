@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
+	h "github.com/YangYuS8/codyssey/backend/internal/http/handler"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
-	h "github.com/your-org/codyssey/backend/internal/http/handler"
 )
 
 const ctxKeyIdentity = "__identity"

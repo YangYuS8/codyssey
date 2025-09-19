@@ -13,12 +13,12 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/YangYuS8/codyssey/backend/internal/config"
+	"github.com/YangYuS8/codyssey/backend/internal/db"
+	"github.com/YangYuS8/codyssey/backend/internal/http/router"
+	"github.com/YangYuS8/codyssey/backend/internal/repository"
 	_ "github.com/jackc/pgx/v5/stdlib" // register pgx driver for database/sql
 	"github.com/pressly/goose/v3"
-	"github.com/your-org/codyssey/backend/internal/config"
-	"github.com/your-org/codyssey/backend/internal/db"
-	"github.com/your-org/codyssey/backend/internal/http/router"
-	"github.com/your-org/codyssey/backend/internal/repository"
 )
 
 type Server struct {
@@ -50,8 +50,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// 3. 初始化仓库 & 路由
 	problemRepo := repository.NewPGProblemRepository(database.Pool)
+	userRepo := repository.NewPGUserRepository(database.Pool)
 	deps := router.Dependencies{
 		ProblemRepo: problemRepo,
+		UserRepo:    userRepo,
 		HealthCheck: healthProbe{s: s},
 		Version:     s.cfg.Version,
 		Env:         s.cfg.Env,

@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/YangYuS8/codyssey/backend/internal/repository"
+	"github.com/YangYuS8/codyssey/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/your-org/codyssey/backend/internal/repository"
-	"github.com/your-org/codyssey/backend/internal/service"
 )
 
 // 使用 service 层抽象，避免 handler 直接操作仓储

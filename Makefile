@@ -34,7 +34,7 @@ dev-go:
 	cd backend && GO_BACKEND_PORT=$${GO_BACKEND_PORT:-8080} go run .
 
 dev-py:
-	cd python && uvicorn main:app --reload --port -8000
+	cd python && PY_BACKEND_PORT=$${PY_BACKEND_PORT:-8000} uvicorn main:app --reload --port $${PY_BACKEND_PORT}
 
 dev-frontend:
 	cd frontend && pnpm install && pnpm dev

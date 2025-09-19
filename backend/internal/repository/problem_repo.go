@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/YangYuS8/codyssey/backend/internal/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/your-org/codyssey/backend/internal/domain"
 )
 
 var ErrNotFound = errors.New("problem not found")

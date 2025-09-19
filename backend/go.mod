@@ -1,4 +1,4 @@
-module github.com/your-org/codyssey/backend
+module github.com/YangYuS8/codyssey/backend
 
 go 1.23.0
 

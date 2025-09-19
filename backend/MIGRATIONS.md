@@ -76,6 +76,15 @@ goose -dir ./migrations pgx "$DB_DSN" up 0002
 - 增加 `users`, `submissions`, `contests`, `judge_runs` 等表的分阶段迁移。
 - 为关键表添加索引与约束（唯一、外键）。
 
+### 已实现里程碑补充
+
+- 0001_create_problems.sql: 初始 `problems` 表。
+- 0002_create_users.sql: 初始 `users` 表，包含 `username`、`created_at`。
+- 0003_add_roles_to_users.sql: 引入 `roles TEXT[]` 列（使用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` 简化实现，去除 DO 块避免某些环境 dollar-quote 解析问题）。
+	- 设计原因：RBAC 权限系统需要在用户实体上直接存储多角色集合，便于后续鉴权一次加载。
+	- 未额外创建用户名索引：`username UNIQUE` 已隐式生成唯一索引。
+	- 如未来要抽离角色为独立实体，可新增 `roles` / `user_roles` 关系并迁移数据。
+
 ## 7. 约定
 
 - 迁移一旦合并主分支，不要“修改旧迁移”，只能追加新文件。

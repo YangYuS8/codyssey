@@ -3,12 +3,12 @@ package router
 import (
 	"context"
 
+	"github.com/YangYuS8/codyssey/backend/internal/auth"
+	"github.com/YangYuS8/codyssey/backend/internal/domain"
+	"github.com/YangYuS8/codyssey/backend/internal/http/handler"
+	"github.com/YangYuS8/codyssey/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/your-org/codyssey/backend/internal/auth"
-	"github.com/your-org/codyssey/backend/internal/domain"
-	"github.com/your-org/codyssey/backend/internal/http/handler"
-	"github.com/your-org/codyssey/backend/internal/service"
 )
 
 type ProblemRepo interface {
@@ -21,6 +21,7 @@ type ProblemRepo interface {
 
 type Dependencies struct {
     ProblemRepo ProblemRepo
+    UserRepo    service.UserRepo
     HealthCheck handler.HealthChecker
     Version     string
     Env         string
@@ -40,6 +41,15 @@ func Setup(dep Dependencies) *gin.Engine {
         r.GET("/problems/:id", handler.GetProblem(ps))
         r.PUT("/problems/:id", auth.Require(auth.PermProblemUpdate), handler.UpdateProblem(ps))
         r.DELETE("/problems/:id", auth.Require(auth.PermProblemDelete), handler.DeleteProblem(ps))
+    }
+
+    if dep.UserRepo != nil {
+        us := service.NewUserService(dep.UserRepo)
+        r.GET("/users", auth.Require(auth.PermUserList), handler.ListUsers(us))
+        r.POST("/users", auth.Require(auth.PermUserCreate), handler.CreateUser(us))
+        r.GET("/users/:id", auth.Require(auth.PermUserGet), handler.GetUser(us))
+        r.PUT("/users/:id/roles", auth.Require(auth.PermUserUpdateRoles), handler.UpdateUserRoles(us))
+        r.DELETE("/users/:id", auth.Require(auth.PermUserDelete), handler.DeleteUser(us))
     }
 
 	return r

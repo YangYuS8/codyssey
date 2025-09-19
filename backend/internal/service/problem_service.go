@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
+	"github.com/YangYuS8/codyssey/backend/internal/domain"
+	"github.com/YangYuS8/codyssey/backend/internal/repository"
 	"github.com/google/uuid"
-	"github.com/your-org/codyssey/backend/internal/domain"
-	"github.com/your-org/codyssey/backend/internal/repository"
 )
 
 // ProblemRepo 抽象（接口收敛，方便后续装饰）

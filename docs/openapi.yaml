@@ -158,6 +158,113 @@ paths:
         '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '500': { description: 删除失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
 
+  /users:
+    get:
+      summary: 列出用户
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+                  error: { nullable: true }
+                required: [data]
+        '403': { description: 权限不足, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 服务器错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    post:
+      summary: 创建用户
+      operationId: createUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        '201': { description: 已创建, content: { application/json: { schema: { $ref: '#/components/schemas/UserEnvelope' } } } }
+        '400': { description: 参数错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 权限不足, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '409': { description: 用户名已存在, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 创建失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
+  /users/{id}:
+    get:
+      summary: 获取用户
+      operationId: getUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UserEnvelope' } } } }
+        '400': { description: UUID 错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 权限不足, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 获取失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    delete:
+      summary: 删除用户
+      operationId: deleteUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 已删除
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deleted: { type: string, format: uuid }
+                  error: { nullable: true }
+                required: [data]
+        '400': { description: UUID 错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 权限不足, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 删除失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
+  /users/{id}/roles:
+    put:
+      summary: 更新用户角色
+      operationId: updateUserRoles
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdateRolesRequest' }
+      responses:
+        '200': { description: 已更新, content: { application/json: { schema: { $ref: '#/components/schemas/UserEnvelope' } } } }
+        '400': { description: 参数或 UUID 错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 权限不足, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 更新失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
 components:
   securitySchemes:
     BearerAuth:
@@ -226,3 +333,36 @@ components:
         version: { type: string }
         env: { type: string }
       required: [status, db, version, env]
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+      required: [id, username, roles, created_at]
+    UserCreateRequest:
+      type: object
+      properties:
+        username: { type: string, minLength: 3, maxLength: 50 }
+        roles:
+          type: array
+          items: { type: string }
+          minItems: 0
+      required: [username]
+    UserUpdateRolesRequest:
+      type: object
+      properties:
+        roles:
+          type: array
+          items: { type: string }
+          minItems: 0
+      required: [roles]
+    UserEnvelope:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/User' }
+        error: { nullable: true }
+      required: [data]
