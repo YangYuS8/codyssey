@@ -89,6 +89,15 @@ goose -dir ./migrations pgx "$DB_DSN" up 0002
 	 - Refresh/Access Token 均使用对称 HS256 JWT，后续可引入旋转/黑名单（存储 refresh jti）。
  - 0005_create_submissions.sql: 初始 `submissions` 表，包含基础字段（status 默认 pending）。
  - 0006_add_submission_metrics_and_logs.sql: 为 `submissions` 增加执行指标列：`runtime_ms INT DEFAULT 0`、`memory_kb INT DEFAULT 0`、`error_message TEXT NULL`、`version INT DEFAULT 1`，并新增 `submission_status_logs` 表记录状态流转（from_status -> to_status, created_at）。
+ - 0007_create_judge_runs.sql: 新增 `judge_runs` 表，用于记录判题执行实例（多次重判/不同判题版本）。
+	 - 关键字段：
+		 - `submission_id`: 关联提交；允许一个 submission 拥有多个 run（重判或升级判题程序）
+		 - `status`: 生命周期 `queued` -> `running` -> (`succeeded`|`failed`|`canceled`)
+		 - 指标：`runtime_ms`, `memory_kb`, `exit_code`, `error_message`
+		 - 时间戳：`started_at`, `finished_at`（仅在 running / 终态更新）
+		 - `judge_version`: 记录判题沙箱/镜像或配置版本，支持回溯复现
+	 - 索引：`submission_id`（列表/聚合查询），`status`（调度器过滤 queued），后续可考虑 `(submission_id, created_at DESC)` 复合索引用于最近 run 查询。
+	 - 设计原因：与 `submissions` 拆分：submission 反映用户一次提交的“意图与最终结果”，judge_runs 细化底层判题过程（可多次尝试 / 重跑），为后续调度、追踪、性能统计、回放提供结构化数据。
 
 ## 7. 约定
 
