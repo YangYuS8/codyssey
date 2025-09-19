@@ -25,6 +25,7 @@ type Dependencies struct {
     AuthService *auth.AuthService
     SubmissionRepo service.SubmissionRepo
     SubmissionStatusLogRepo service.SubmissionStatusLogRepo
+    JudgeRunRepo service.JudgeRunRepo
     HealthCheck handler.HealthChecker
     Version     string
     Env         string
@@ -64,12 +65,19 @@ func Setup(dep Dependencies) *gin.Engine {
 
     if dep.SubmissionRepo != nil {
         ss := service.NewSubmissionService(dep.SubmissionRepo, dep.SubmissionStatusLogRepo)
+        var jrAdapter *service.JudgeRunHTTPAdapter
+        if dep.JudgeRunRepo != nil { jrAdapter = service.NewJudgeRunHTTPAdapter(service.NewJudgeRunService(dep.JudgeRunRepo)) }
         // 创建沿用 handler 内部校验登录，列表与单个获取加精细权限（list / get）
         r.POST("/submissions", handler.CreateSubmission(ss))
         r.GET("/submissions", auth.Require(auth.PermSubmissionList), handler.ListSubmissions(ss))
         r.GET("/submissions/:id", auth.Require(auth.PermSubmissionGet), handler.GetSubmission(ss))
         r.PATCH("/submissions/:id/status", auth.Require(auth.PermSubmissionUpdateStatus), handler.UpdateSubmissionStatus(ss))
         r.GET("/submissions/:id/logs", auth.Require(auth.PermSubmissionGet), handler.ListSubmissionStatusLogs(ss))
+        if jrAdapter != nil {
+            r.POST("/submissions/:id/runs", auth.Require(auth.PermJudgeRunEnqueue), handler.EnqueueJudgeRun(jrAdapter, ss))
+            r.GET("/submissions/:id/runs", auth.Require(auth.PermJudgeRunList), handler.ListJudgeRuns(jrAdapter, ss))
+            r.GET("/judge-runs/:id", auth.Require(auth.PermJudgeRunGet), handler.GetJudgeRun(jrAdapter, ss))
+        }
     }
 
 	return r

@@ -57,3 +57,53 @@ func (s *JudgeRunService) Get(ctx context.Context, id string) (domain.JudgeRun, 
 func (s *JudgeRunService) ListBySubmission(ctx context.Context, submissionID string, limit, offset int) ([]domain.JudgeRun, error) {
     return s.repo.ListBySubmission(ctx, submissionID, limit, offset)
 }
+
+// --- DTO & Adapter for HTTP layer ---
+// 定义一个 DTO，避免 handler 直接依赖 domain 结构（未来可做字段裁剪或扩展）
+type JudgeRunDTO struct {
+    ID           string
+    SubmissionID string
+    Status       string
+    JudgeVersion string
+    RuntimeMS    int
+    MemoryKB     int
+    ExitCode     int
+    ErrorMessage string
+    CreatedAt    time.Time
+    UpdatedAt    time.Time
+    StartedAt    *time.Time
+    FinishedAt   *time.Time
+}
+
+func toDTO(d domain.JudgeRun) JudgeRunDTO {
+    return JudgeRunDTO{
+        ID: d.ID, SubmissionID: d.SubmissionID, Status: d.Status, JudgeVersion: d.JudgeVersion,
+        RuntimeMS: d.RuntimeMS, MemoryKB: d.MemoryKB, ExitCode: d.ExitCode, ErrorMessage: d.ErrorMessage,
+        CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt, StartedAt: d.StartedAt, FinishedAt: d.FinishedAt,
+    }
+}
+
+// HTTPAdapter 提供面向 handler 的包装（返回 DTO）
+type JudgeRunHTTPAdapter struct { svc *JudgeRunService }
+
+func NewJudgeRunHTTPAdapter(svc *JudgeRunService) *JudgeRunHTTPAdapter { return &JudgeRunHTTPAdapter{svc: svc} }
+
+func (a *JudgeRunHTTPAdapter) Enqueue(ctx context.Context, submissionID, judgeVersion string) (JudgeRunDTO, error) {
+    jr, err := a.svc.Enqueue(ctx, submissionID, judgeVersion)
+    if err != nil { return JudgeRunDTO{}, err }
+    return toDTO(jr), nil
+}
+
+func (a *JudgeRunHTTPAdapter) ListBySubmission(ctx context.Context, submissionID string, limit, offset int) ([]JudgeRunDTO, error) {
+    list, err := a.svc.ListBySubmission(ctx, submissionID, limit, offset)
+    if err != nil { return nil, err }
+    out := make([]JudgeRunDTO, 0, len(list))
+    for _, it := range list { out = append(out, toDTO(it)) }
+    return out, nil
+}
+
+func (a *JudgeRunHTTPAdapter) Get(ctx context.Context, id string) (JudgeRunDTO, error) {
+    jr, err := a.svc.Get(ctx, id)
+    if err != nil { return JudgeRunDTO{}, err }
+    return toDTO(jr), nil
+}

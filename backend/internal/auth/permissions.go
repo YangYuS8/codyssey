@@ -33,6 +33,10 @@ const (
     PermSubmissionGet    Permission = "submission.get"
     PermSubmissionList   Permission = "submission.list"
     PermSubmissionUpdateStatus Permission = "submission.update_status"
+    // JudgeRun 相关权限（最小公开集合）
+    PermJudgeRunEnqueue Permission = "judge_run.enqueue"
+    PermJudgeRunGet     Permission = "judge_run.get"
+    PermJudgeRunList    Permission = "judge_run.list"
 )
 
 // 简单用户身份模型（后续替换为 JWT 解析结果）
@@ -58,10 +62,12 @@ func NewDebugIdentity(perms []Permission) *Identity {
 var rolePermissionMap = map[string][]Permission{
     RoleSystemAdmin: {PermProblemCreate, PermProblemUpdate, PermProblemDelete, PermProblemRead, PermProblemList, PermProblemGet,
         PermUserCreate, PermUserRead, PermUserList, PermUserGet, PermUserUpdateRoles, PermUserDelete,
-        PermSubmissionCreate, PermSubmissionGet, PermSubmissionList, PermSubmissionUpdateStatus},
+        PermSubmissionCreate, PermSubmissionGet, PermSubmissionList, PermSubmissionUpdateStatus,
+        PermJudgeRunEnqueue, PermJudgeRunGet, PermJudgeRunList},
     RoleTeacher:     {PermProblemCreate, PermProblemUpdate, PermProblemDelete, PermProblemRead, PermProblemList, PermProblemGet,
         PermUserRead, PermUserList, PermUserGet,
-        PermSubmissionCreate, PermSubmissionGet, PermSubmissionList, PermSubmissionUpdateStatus},
+        PermSubmissionCreate, PermSubmissionGet, PermSubmissionList, PermSubmissionUpdateStatus,
+        PermJudgeRunEnqueue, PermJudgeRunGet, PermJudgeRunList},
     RoleStudent:     {PermProblemRead, PermProblemList, PermProblemGet, PermUserGet, PermSubmissionCreate, PermSubmissionGet, PermSubmissionList},
     RoleContestant:  {PermProblemRead, PermProblemList, PermProblemGet, PermUserGet, PermSubmissionCreate, PermSubmissionGet, PermSubmissionList},
     RoleGuest:       {PermProblemRead, PermProblemList, PermProblemGet},

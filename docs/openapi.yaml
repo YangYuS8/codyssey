@@ -411,6 +411,71 @@ paths:
         '403': { description: 无权限, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '500': { description: 查询失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
 
+  /submissions/{id}/runs:
+    post:
+      summary: 创建（排队）一次新的判题运行
+      description: 为指定 submission 追加一个新的判题执行实例，初始 status=queued。判题实际开始与结束由内部调度器控制。
+      operationId: enqueueJudgeRun
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                judge_version: { type: string, description: 可选，指定判题程序版本 }
+      responses:
+        '201': { description: 已创建, content: { application/json: { schema: { $ref: '#/components/schemas/JudgeRunEnvelope' } } } }
+        '400': { description: 参数错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 无权限或非提交者, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 提交不存在, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 创建失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    get:
+      summary: 列出指定提交的判题运行记录
+      operationId: listJudgeRunsBySubmission
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/JudgeRunListResponse' } } } }
+        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 无权限或非提交者, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 提交不存在, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 查询失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
+  /judge-runs/{id}:
+    get:
+      summary: 获取单个判题运行记录详情
+      operationId: getJudgeRun
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/JudgeRunEnvelope' } } } }
+        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 无权限或非提交者, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 查询失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
 components:
   securitySchemes:
     BearerAuth:
@@ -624,6 +689,44 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/SubmissionStatusLog' }
+        meta:
+          type: object
+          properties:
+            limit: { type: integer }
+            offset: { type: integer }
+            count: { type: integer }
+        error: { nullable: true }
+      required: [data, meta]
+    JudgeRun:
+      type: object
+      properties:
+        id: { type: string }
+        submission_id: { type: string }
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, canceled]
+        judge_version: { type: string, nullable: true }
+        runtime_ms: { type: integer }
+        memory_kb: { type: integer }
+        exit_code: { type: integer }
+        error_message: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        started_at: { type: string, format: date-time, nullable: true }
+        finished_at: { type: string, format: date-time, nullable: true }
+      required: [id, submission_id, status, runtime_ms, memory_kb, exit_code, created_at, updated_at]
+    JudgeRunEnvelope:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/JudgeRun' }
+        error: { nullable: true }
+      required: [data]
+    JudgeRunListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/JudgeRun' }
         meta:
           type: object
           properties:
