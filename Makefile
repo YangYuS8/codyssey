@@ -50,3 +50,10 @@ logs-go:
 
 logs-py:
 	cd infra && docker-compose logs -f py-backend
+
+lint:
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		cd backend && golangci-lint run ./... ; \
+	else \
+		echo "golangci-lint not installed: install via 'go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest'"; \
+	fi

@@ -57,9 +57,12 @@ func (r *PGSubmissionRepository) GetByID(ctx context.Context, id string) (domain
 }
 
 func (r *PGSubmissionRepository) UpdateStatus(ctx context.Context, id string, status string) error {
-    cmd, err := r.pool.Exec(ctx, `UPDATE submissions SET status=$1, version=version+1, updated_at=NOW() WHERE id=$2`, status, id)
+    // 读取当前状态以支持条件更新（简单两步；可优化为单条 SQL 返回旧值）
+    cur, err := r.GetByID(ctx, id)
     if err != nil { return err }
-    if cmd.RowsAffected() == 0 { return ErrSubmissionNotFound }
+    cmd, err := r.pool.Exec(ctx, `UPDATE submissions SET status=$1, version=version+1, updated_at=NOW() WHERE id=$2 AND status=$3`, status, id, cur.Status)
+    if err != nil { return err }
+    if cmd.RowsAffected() == 0 { return errors.New("concurrent status change") }
     return nil
 }
 
@@ -68,13 +71,14 @@ func (r *PGSubmissionRepository) List(ctx context.Context, f SubmissionFilter, l
     if offset < 0 { offset = 0 }
     clauses := []string{"1=1"}
     args := []any{}
-    idx := 1
-    if f.UserID != "" { clauses = append(clauses, "user_id=$"+itoa(idx)); args = append(args, f.UserID); idx++ }
-    if f.ProblemID != "" { clauses = append(clauses, "problem_id=$"+itoa(idx)); args = append(args, f.ProblemID); idx++ }
-    if f.Status != "" { clauses = append(clauses, "status=$"+itoa(idx)); args = append(args, f.Status); idx++ }
-    // pagination
+    // build dynamic placeholders using current len(args)+1 to avoid manual idx management
+    if f.UserID != "" { clauses = append(clauses, "user_id=$"+itoa(len(args)+1)); args = append(args, f.UserID) }
+    if f.ProblemID != "" { clauses = append(clauses, "problem_id=$"+itoa(len(args)+1)); args = append(args, f.ProblemID) }
+    if f.Status != "" { clauses = append(clauses, "status=$"+itoa(len(args)+1)); args = append(args, f.Status) }
+    limitPos := len(args) + 1
+    offsetPos := len(args) + 2
+    q := `SELECT id, user_id, problem_id, language, code, status, runtime_ms, memory_kb, error_message, version, created_at, updated_at FROM submissions WHERE ` + strings.Join(clauses, " AND ") + ` ORDER BY created_at DESC LIMIT $` + itoa(limitPos) + ` OFFSET $` + itoa(offsetPos)
     args = append(args, limit, offset)
-    q := `SELECT id, user_id, problem_id, language, code, status, runtime_ms, memory_kb, error_message, version, created_at, updated_at FROM submissions WHERE ` + strings.Join(clauses, " AND ") + ` ORDER BY created_at DESC LIMIT $` + itoa(idx) + ` OFFSET $` + itoa(idx+1)
     rows, err := r.pool.Query(ctx, q, args...)
     if err != nil { return nil, err }
     defer rows.Close()
@@ -90,10 +94,9 @@ func (r *PGSubmissionRepository) List(ctx context.Context, f SubmissionFilter, l
 func (r *PGSubmissionRepository) Count(ctx context.Context, f SubmissionFilter) (int, error) {
     clauses := []string{"1=1"}
     args := []any{}
-    idx := 1
-    if f.UserID != "" { clauses = append(clauses, "user_id=$"+itoa(idx)); args = append(args, f.UserID); idx++ }
-    if f.ProblemID != "" { clauses = append(clauses, "problem_id=$"+itoa(idx)); args = append(args, f.ProblemID); idx++ }
-    if f.Status != "" { clauses = append(clauses, "status=$"+itoa(idx)); args = append(args, f.Status); idx++ }
+    if f.UserID != "" { clauses = append(clauses, "user_id=$"+itoa(len(args)+1)); args = append(args, f.UserID) }
+    if f.ProblemID != "" { clauses = append(clauses, "problem_id=$"+itoa(len(args)+1)); args = append(args, f.ProblemID) }
+    if f.Status != "" { clauses = append(clauses, "status=$"+itoa(len(args)+1)); args = append(args, f.Status) }
     q := `SELECT COUNT(*) FROM submissions WHERE ` + strings.Join(clauses, " AND ")
     row := r.pool.QueryRow(ctx, q, args...)
     var total int

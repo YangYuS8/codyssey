@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -67,6 +68,35 @@ func AttachDebugIdentity() gin.HandlerFunc {
         c.Set(ctxKeyIdentity, id)
         c.Next()
     }
+}
+
+// StrictJWTAuth 仅解析并要求有效 JWT，不支持 debug 头；失败直接 401。
+// 适用于非 development 环境。
+func StrictJWTAuth(secret string) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        authz := c.GetHeader("Authorization")
+        if !strings.HasPrefix(strings.ToLower(authz), "bearer ") {
+            unauthorized(c, "missing bearer token")
+            return
+        }
+        tokenStr := strings.TrimSpace(authz[7:])
+        if tokenStr == "" { unauthorized(c, "empty token"); return }
+        claims := &jwtCustomClaims{}
+        t, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) { return []byte(secret), nil })
+        if err != nil || !t.Valid || claims.ExpiresAt == nil || claims.ExpiresAt.Time.Before(time.Now()) {
+            unauthorized(c, "invalid or expired token")
+            return
+        }
+        id := &Identity{UserID: claims.UserID, Roles: claims.Roles, Permissions: map[Permission]struct{}{}}
+        mergeRolePermissions(id)
+        c.Set(ctxKeyIdentity, id)
+        c.Next()
+    }
+}
+
+func unauthorized(c *gin.Context, msg string) {
+    c.JSON(http.StatusUnauthorized, gin.H{"data": nil, "error": gin.H{"code": "UNAUTHORIZED", "message": msg}})
+    c.Abort()
 }
 
 // getJWTSecret 暂时简单实现：从环境变量读取（避免循环依赖 config 包）

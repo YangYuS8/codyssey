@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/YangYuS8/codyssey/backend/internal/domain"
+	"github.com/YangYuS8/codyssey/backend/internal/metrics"
 	"github.com/YangYuS8/codyssey/backend/internal/repository"
 	"github.com/google/uuid"
 )
@@ -87,6 +88,7 @@ func (s *SubmissionService) UpdateStatus(ctx context.Context, id string, newStat
     for _, a := range allowed { if a == newStatus { ok = true; break } }
     if !ok { return domain.Submission{}, ErrInvalidStatusTransition }
     if err := s.repo.UpdateStatus(ctx, id, newStatus); err != nil { return domain.Submission{}, err }
+    metrics.ObserveSubmissionTransition(fromStatus, newStatus)
     cur.Status = newStatus
     cur.Version += 1
     cur.UpdatedAt = time.Now().UTC()

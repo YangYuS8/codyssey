@@ -68,6 +68,7 @@ docker compose up --build -d
 > - `development.md`
 > - `go-backend.md`
 > - `go-backend-api.md`
+> - `metrics.md`
 > - `roadmap.md`
 
 ---

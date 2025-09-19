@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/YangYuS8/codyssey/backend/internal/domain"
+	"github.com/YangYuS8/codyssey/backend/internal/metrics"
 	"github.com/YangYuS8/codyssey/backend/internal/repository"
 	"github.com/google/uuid"
 )
@@ -32,13 +33,16 @@ func NewJudgeRunService(r JudgeRunRepo) *JudgeRunService { return &JudgeRunServi
 func (s *JudgeRunService) Enqueue(ctx context.Context, submissionID string, judgeVersion string) (domain.JudgeRun, error) {
     jr := domain.JudgeRun{ID: uuid.New().String(), SubmissionID: submissionID, Status: domain.JudgeRunStatusQueued, JudgeVersion: judgeVersion, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
     if err := s.repo.Create(ctx, jr); err != nil { return domain.JudgeRun{}, err }
+    metrics.ObserveJudgeRunTransition("", domain.JudgeRunStatusQueued)
     return jr, nil
 }
 
 // Start 将 queued 置为 running
 func (s *JudgeRunService) Start(ctx context.Context, id string) (domain.JudgeRun, error) {
     if err := s.repo.UpdateRunning(ctx, id); err != nil { return domain.JudgeRun{}, err }
-    return s.repo.GetByID(ctx, id)
+    jr, err := s.repo.GetByID(ctx, id)
+    if err == nil { metrics.ObserveJudgeRunTransition(domain.JudgeRunStatusQueued, domain.JudgeRunStatusRunning) }
+    return jr, err
 }
 
 // Finish 将 running 置为终态（succeeded/failed/canceled），并写入指标
@@ -49,7 +53,9 @@ func (s *JudgeRunService) Finish(ctx context.Context, id string, status string, 
         return domain.JudgeRun{}, ErrJudgeRunInvalidStatus
     }
     if err := s.repo.UpdateFinished(ctx, id, status, runtimeMS, memoryKB, exitCode, errMsg); err != nil { return domain.JudgeRun{}, err }
-    return s.repo.GetByID(ctx, id)
+    jr, err := s.repo.GetByID(ctx, id)
+    if err == nil { metrics.ObserveJudgeRunTransition(domain.JudgeRunStatusRunning, status) }
+    return jr, err
 }
 
 func (s *JudgeRunService) Get(ctx context.Context, id string) (domain.JudgeRun, error) { return s.repo.GetByID(ctx, id) }

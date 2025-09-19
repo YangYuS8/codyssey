@@ -68,7 +68,7 @@ func (r *PGJudgeRunRepository) ListBySubmission(ctx context.Context, submissionI
 }
 
 func (r *PGJudgeRunRepository) UpdateRunning(ctx context.Context, id string) error {
-    // 仅允许 queued -> running
+    // 仅允许 queued -> running；利用 WHERE status='queued' 保证并发安全
     cmd, err := r.pool.Exec(ctx, `UPDATE judge_runs SET status='running', started_at=NOW(), updated_at=NOW() WHERE id=$1 AND status='queued'`, id)
     if err != nil { return err }
     if cmd.RowsAffected() == 0 { return ErrJudgeRunNotFound }
@@ -82,6 +82,7 @@ func (r *PGJudgeRunRepository) UpdateFinished(ctx context.Context, id string, st
     default:
         return errors.New("invalid terminal status")
     }
+    // 并发安全：WHERE status='running'
     cmd, err := r.pool.Exec(ctx, `UPDATE judge_runs SET status=$1, runtime_ms=$2, memory_kb=$3, exit_code=$4, error_message=$5, finished_at=NOW(), updated_at=NOW() WHERE id=$6 AND status='running'`, status, runtimeMS, memoryKB, exitCode, errMsg, id)
     if err != nil { return err }
     if cmd.RowsAffected() == 0 { return ErrJudgeRunNotFound }

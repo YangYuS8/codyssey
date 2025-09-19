@@ -12,6 +12,8 @@ type Config struct {
 	DB          DBConfig
 	Version     string
 	JWTSecret   string
+	AutoMigrate bool
+	LogLevel    string
 }
 
 type DBConfig struct {
@@ -29,6 +31,8 @@ func Load() Config {
 	if port == "" { port = "8080" }
 	env := os.Getenv("ENV")
 	if env == "" { env = "development" }
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" { logLevel = "info" }
 	db := DBConfig{
 		Host:     firstNonEmpty(os.Getenv("POSTGRES_HOST"), "localhost"),
 		Port:     firstNonEmpty(os.Getenv("POSTGRES_PORT"), "5432"),
@@ -39,7 +43,16 @@ func Load() Config {
 	}
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" { jwtSecret = "dev-secret-change-me" }
-	return Config{Port: port, Env: env, DB: db, JWTSecret: jwtSecret}
+	autoMig := os.Getenv("AUTO_MIGRATE") == "true"
+	return Config{Port: port, Env: env, DB: db, JWTSecret: jwtSecret, AutoMigrate: autoMig, LogLevel: logLevel}
+}
+
+// Validate performs basic sanity checks; panic early if critical settings missing in non-dev.
+func (c Config) Validate() error {
+    if c.Env != "development" && c.JWTSecret == "dev-secret-change-me" {
+        return fmt.Errorf("JWT_SECRET must be set in %s env", c.Env)
+    }
+    return nil
 }
 
 func (d DBConfig) ConnString() string {

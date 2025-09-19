@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/YangYuS8/codyssey/backend/internal/auth"
 	"github.com/YangYuS8/codyssey/backend/internal/config"
@@ -33,9 +34,26 @@ type healthProbe struct { s *Server }
 func (h healthProbe) DBAlive() bool { return h.s != nil && h.s.db != nil }
 
 func New(cfg config.Config) (*Server, error) {
-	logger, err := zap.NewDevelopment()
+	if err := cfg.Validate(); err != nil { return nil, err }
+	logger, err := buildLogger(cfg)
 	if err != nil { return nil, err }
 	return &Server{cfg: cfg, logger: logger}, nil
+}
+
+func buildLogger(cfg config.Config) (*zap.Logger, error) {
+	var level zapcore.Level
+	switch cfg.LogLevel {
+	case "debug": level = zap.DebugLevel
+	case "info": level = zap.InfoLevel
+	case "warn": level = zap.WarnLevel
+	case "error": level = zap.ErrorLevel
+	default: level = zap.InfoLevel
+	}
+	encCfg := zap.NewProductionEncoderConfig()
+	encCfg.TimeKey = "ts"
+	encCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	core := zapcore.NewCore(zapcore.NewJSONEncoder(encCfg), zapcore.AddSync(os.Stdout), level)
+	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel)), nil
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -44,9 +62,13 @@ func (s *Server) Start(ctx context.Context) error {
 	if err != nil { return err }
 	s.db = database
 
-	// 2. 执行 goose 迁移
-	if err := s.runMigrations(); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
+	// 2. 条件执行 goose 迁移
+	if s.cfg.AutoMigrate {
+		if err := s.runMigrations(); err != nil {
+			return fmt.Errorf("run migrations: %w", err)
+		}
+	} else {
+		s.logger.Info("auto migrate disabled; skip applying migrations", zap.Bool("auto_migrate", s.cfg.AutoMigrate))
 	}
 
 	// 3. 初始化仓库 & 路由

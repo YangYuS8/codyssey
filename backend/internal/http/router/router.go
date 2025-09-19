@@ -2,11 +2,13 @@ package router
 
 import (
 	"context"
+	"os"
 
 	"github.com/YangYuS8/codyssey/backend/internal/auth"
 	"github.com/YangYuS8/codyssey/backend/internal/domain"
 	"github.com/YangYuS8/codyssey/backend/internal/http/handler"
 	"github.com/YangYuS8/codyssey/backend/internal/http/middleware"
+	"github.com/YangYuS8/codyssey/backend/internal/metrics"
 	"github.com/YangYuS8/codyssey/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -34,9 +36,19 @@ type Dependencies struct {
 
 func Setup(dep Dependencies) *gin.Engine {
     r := gin.New()
-    r.Use(gin.Logger(), gin.Recovery(), middleware.TraceID(), auth.AttachDebugIdentity())
+    r.Use(gin.Logger(), gin.Recovery(), middleware.TraceID(), metrics.Middleware())
+    // 依据 ENV 使用不同身份中间件（默认 development 下允许 debug 头）
+    env := dep.Env
+    if env == "" { env = os.Getenv("ENV") }
+    if env == "development" || env == "test" {
+        r.Use(auth.AttachDebugIdentity())
+    } else {
+        // JWT_SECRET 由 server 侧注入 env；这里直接读取
+        r.Use(auth.StrictJWTAuth(os.Getenv("JWT_SECRET")))
+    }
 
-	r.GET("/health", handler.Health(dep.Version, dep.Env, dep.HealthCheck))
+    r.GET("/health", handler.Health(dep.Version, dep.Env, dep.HealthCheck))
+    r.GET("/metrics", metrics.Handler())
 	r.GET("/version", func(c *gin.Context) { c.JSON(200, gin.H{"version": dep.Version}) })
 
     if dep.ProblemRepo != nil {

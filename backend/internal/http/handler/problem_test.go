@@ -34,8 +34,6 @@ func (m *memoryRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return repository.ErrNotFound
 }
 
-type noDB struct{}
-func (noDB) DBAlive() bool { return true }
 
 func setupProblemRouter(repo service.ProblemRepo) *gin.Engine {
 	gin.SetMode(gin.TestMode)

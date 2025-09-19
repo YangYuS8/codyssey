@@ -1,0 +1,30 @@
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - ineffassign
+    - staticcheck
+    - gosimple
+    - typecheck
+    - unused
+    - gocyclo
+  disable:
+    - depguard
+
+linters-settings:
+  gocyclo:
+    min-complexity: 18
+
+issues:
+  exclude-dirs:
+    - frontend
+  exclude-rules:
+    - path: _test.go
+      linters:
+        - gocyclo
+  max-issues-per-linter: 0
+  max-same-issues: 0
