@@ -16,6 +16,7 @@ coverage/
 __pycache__/
 .pytest_cache/
 /python/.venv/
+.venv/
 
 # Frontend Next.js
 /frontend/.next/

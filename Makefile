@@ -19,22 +19,22 @@ help:
 	@echo "  logs-py        查看 Python 容器日志 (Full Docker 模式)"
 
 infra-up:
-	docker compose -f infra/docker-compose.infra.yml up -d
+	docker-compose -f infra/docker-compose.infra.yml up -d
 
 infra-down:
-	docker compose -f infra/docker-compose.infra.yml down
+	docker-compose -f infra/docker-compose.infra.yml down
 
 full-up:
-	cd infra && docker compose up -d --build
+	cd infra && docker-compose up -d --build
 
 full-down:
-	cd infra && docker compose down
+	cd infra && docker-compose down
 
 dev-go:
 	cd backend && GO_BACKEND_PORT=$${GO_BACKEND_PORT:-8080} go run .
 
 dev-py:
-	cd python && PY_BACKEND_PORT=$${PY_BACKEND_PORT:-8000} uvicorn main:app --reload --port $${PY_BACKEND_PORT:-8000}
+	cd python && uvicorn main:app --reload --port -8000
 
 dev-frontend:
 	cd frontend && pnpm install && pnpm dev
@@ -46,7 +46,7 @@ test-py:
 	cd python && pytest -q
 
 logs-go:
-	cd infra && docker compose logs -f go-backend
+	cd infra && docker-compose logs -f go-backend
 
 logs-py:
-	cd infra && docker compose logs -f py-backend
+	cd infra && docker-compose logs -f py-backend
