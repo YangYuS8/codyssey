@@ -1,0 +1,228 @@
+openapi: 3.0.3
+info:
+  title: Codyssey API
+  version: 0.1.0
+  description: |
+    初始版本，仅包含健康检查与 Problem CRUD。统一返回格式：
+    - 成功: { "data": <payload>, "meta": { ... 可选 }, "error": null }
+    - 失败: { "data": null, "error": { "code": "<CODE>", "message": "..." } }
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.example.com
+    description: Production (placeholder)
+
+paths:
+  /health:
+    get:
+      summary: 健康检查
+      operationId: getHealth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /version:
+    get:
+      summary: 版本信息
+      operationId: getVersion
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+  /problems:
+    get:
+      summary: 列出问题（分页）
+      operationId: listProblems
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, default: 20 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemListResponse'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    post:
+      summary: 创建问题
+      operationId: createProblem
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProblemCreateRequest' }
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemEnvelope' }
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '500':
+          description: 创建失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /problems/{id}:
+    get:
+      summary: 获取问题详情
+      operationId: getProblem
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ProblemEnvelope' } } } }
+        '400': { description: UUID 格式错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 获取失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    put:
+      summary: 更新问题
+      operationId: updateProblem
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProblemUpdateRequest' }
+      responses:
+        '200': { description: 已更新, content: { application/json: { schema: { $ref: '#/components/schemas/ProblemEnvelope' } } } }
+        '400': { description: 参数或 UUID 错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 权限不足, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 更新失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    delete:
+      summary: 删除问题
+      operationId: deleteProblem
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 已删除
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: string
+                        format: uuid
+                  error:
+                    type: 'null'
+        '400': { description: UUID 错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 权限不足, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 删除失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    APIError:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+      required: [code, message]
+    ErrorEnvelope:
+      type: object
+      properties:
+        data:
+          nullable: true
+        error:
+          $ref: '#/components/schemas/APIError'
+      required: [error]
+    Problem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+      required: [id, title, description, created_at]
+    ProblemCreateRequest:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 100 }
+        description: { type: string, minLength: 5 }
+      required: [title, description]
+    ProblemUpdateRequest:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 100 }
+        description: { type: string, minLength: 5 }
+    ProblemEnvelope:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Problem' }
+        error: { nullable: true }
+      required: [data]
+    ProblemListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Problem' }
+        meta:
+          type: object
+          properties:
+            limit: { type: integer }
+            offset: { type: integer }
+            count: { type: integer }
+        error: { nullable: true }
+      required: [data, meta]
+    HealthResponse:
+      type: object
+      properties:
+        status: { type: string }
+        db: { type: string }
+        version: { type: string }
+        env: { type: string }
+      required: [status, db, version, env]

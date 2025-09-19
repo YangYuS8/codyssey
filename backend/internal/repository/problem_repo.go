@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/your-org/codyssey/backend/internal/domain"
 )
@@ -38,7 +38,8 @@ func (r *PGProblemRepository) GetByID(ctx context.Context, id uuid.UUID) (domain
 	var p domain.Problem
 	var pid uuid.UUID
 	if err := row.Scan(&pid, &p.Title, &p.Description, &p.CreatedAt); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) { return domain.Problem{}, ErrNotFound }
+		// 由于移除 pgx 直接引用，这里用字符串方式判断 no rows
+		if strings.Contains(err.Error(), "no rows") { return domain.Problem{}, ErrNotFound }
 		return domain.Problem{}, err
 	}
 	p.ID = pid
@@ -76,12 +77,4 @@ func (r *PGProblemRepository) List(ctx context.Context, limit, offset int) ([]do
 }
 
 // Migration helper (idempotent) - 可在初始化时调用
-func EnsureSchema(ctx context.Context, conn pgx.Tx) error {
-	_, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS problems(
-		id UUID PRIMARY KEY,
-		title TEXT NOT NULL,
-		description TEXT NOT NULL,
-		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	)`)
-	return err
-}
+// (legacy EnsureSchema 已移除; 迁移由 goose 管理)

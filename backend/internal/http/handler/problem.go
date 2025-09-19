@@ -1,23 +1,22 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 
-	"github.com/google/uuid"
-
 	"github.com/gin-gonic/gin"
-	"github.com/your-org/codyssey/backend/internal/domain"
+	"github.com/google/uuid"
 	"github.com/your-org/codyssey/backend/internal/repository"
+	"github.com/your-org/codyssey/backend/internal/service"
 )
 
-type ProblemRepo interface {
-	Create(ctx context.Context, p domain.Problem) error
-	GetByID(ctx context.Context, id uuid.UUID) (domain.Problem, error)
-	Update(ctx context.Context, p domain.Problem) error
-	Delete(ctx context.Context, id uuid.UUID) error
-	List(ctx context.Context, limit, offset int) ([]domain.Problem, error)
+// 使用 service 层抽象，避免 handler 直接操作仓储
+type ProblemService interface {
+    Create(ctx any, title, desc string) (any, error)
+    Get(ctx any, id uuid.UUID) (any, error)
+    Update(ctx any, id uuid.UUID, title *string, desc *string) (any, error)
+    Delete(ctx any, id uuid.UUID) error
+    List(ctx any, limit, offset int) ([]any, error)
 }
 
 type ProblemCreateRequest struct {
@@ -25,15 +24,15 @@ type ProblemCreateRequest struct {
 	Description string `json:"description" binding:"required,min=5"`
 }
 
-func CreateProblem(repo ProblemRepo) gin.HandlerFunc {
+func CreateProblem(s *service.ProblemService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req ProblemCreateRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			respondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 			return
 		}
-		p := domain.NewProblem(req.Title, req.Description)
-		if err := repo.Create(c.Request.Context(), p); err != nil {
+		p, err := s.Create(c.Request.Context(), req.Title, req.Description)
+		if err != nil {
 			respondError(c, http.StatusInternalServerError, "CREATE_FAILED", err.Error())
 			return
 		}
@@ -41,11 +40,11 @@ func CreateProblem(repo ProblemRepo) gin.HandlerFunc {
 	}
 }
 
-func ListProblems(repo ProblemRepo) gin.HandlerFunc {
+func ListProblems(s *service.ProblemService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-		items, err := repo.List(c.Request.Context(), limit, offset)
+		items, err := s.List(c.Request.Context(), limit, offset)
 		if err != nil {
 			respondError(c, http.StatusInternalServerError, "LIST_FAILED", err.Error())
 			return
@@ -55,12 +54,12 @@ func ListProblems(repo ProblemRepo) gin.HandlerFunc {
 	}
 }
 
-func GetProblem(repo ProblemRepo) gin.HandlerFunc {
+func GetProblem(s *service.ProblemService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idStr := c.Param("id")
 		id, err := uuid.Parse(idStr)
 		if err != nil { respondError(c, http.StatusBadRequest, "INVALID_ID", "invalid uuid"); return }
-		p, err := repo.GetByID(c.Request.Context(), id)
+		p, err := s.Get(c.Request.Context(), id)
 		if err != nil {
 			if err == repository.ErrNotFound { respondError(c, http.StatusNotFound, "NOT_FOUND", "problem not found"); return }
 			respondError(c, http.StatusInternalServerError, "GET_FAILED", err.Error()); return
@@ -74,33 +73,26 @@ type ProblemUpdateRequest struct {
 	Description *string `json:"description" binding:"omitempty,min=5"`
 }
 
-func UpdateProblem(repo ProblemRepo) gin.HandlerFunc {
+func UpdateProblem(s *service.ProblemService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil { respondError(c, http.StatusBadRequest, "INVALID_ID", "invalid uuid"); return }
 		var req ProblemUpdateRequest
 		if err := c.ShouldBindJSON(&req); err != nil { respondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error()); return }
-		// Load existing
-		existing, err := repo.GetByID(c.Request.Context(), id)
+		updated, err := s.Update(c.Request.Context(), id, req.Title, req.Description)
 		if err != nil {
-			if err == repository.ErrNotFound { respondError(c, http.StatusNotFound, "NOT_FOUND", "problem not found"); return }
-			respondError(c, http.StatusInternalServerError, "GET_FAILED", err.Error()); return
-		}
-		if req.Title != nil { existing.Title = *req.Title }
-		if req.Description != nil { existing.Description = *req.Description }
-		if err := repo.Update(c.Request.Context(), existing); err != nil {
 			if err == repository.ErrNotFound { respondError(c, http.StatusNotFound, "NOT_FOUND", "problem not found"); return }
 			respondError(c, http.StatusInternalServerError, "UPDATE_FAILED", err.Error()); return
 		}
-		respondOK(c, existing, nil)
+		respondOK(c, updated, nil)
 	}
 }
 
-func DeleteProblem(repo ProblemRepo) gin.HandlerFunc {
+func DeleteProblem(s *service.ProblemService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil { respondError(c, http.StatusBadRequest, "INVALID_ID", "invalid uuid"); return }
-		if err := repo.Delete(c.Request.Context(), id); err != nil {
+		if err := s.Delete(c.Request.Context(), id); err != nil {
 			if err == repository.ErrNotFound { respondError(c, http.StatusNotFound, "NOT_FOUND", "problem not found"); return }
 			respondError(c, http.StatusInternalServerError, "DELETE_FAILED", err.Error()); return
 		}

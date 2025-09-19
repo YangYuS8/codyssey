@@ -10,9 +10,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/your-org/codyssey/backend/internal/auth"
 	"github.com/your-org/codyssey/backend/internal/domain"
 	"github.com/your-org/codyssey/backend/internal/http/handler"
 	"github.com/your-org/codyssey/backend/internal/repository"
+	"github.com/your-org/codyssey/backend/internal/service"
 )
 
 type memoryRepo struct { items []domain.Problem }
@@ -35,14 +37,17 @@ func (m *memoryRepo) Delete(ctx context.Context, id uuid.UUID) error {
 type noDB struct{}
 func (noDB) DBAlive() bool { return true }
 
-func setupProblemRouter(repo handler.ProblemRepo) *gin.Engine {
+func setupProblemRouter(repo service.ProblemRepo) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.POST("/problems", handler.CreateProblem(repo))
-	r.GET("/problems", handler.ListProblems(repo))
-	r.GET("/problems/:id", handler.GetProblem(repo))
-	r.PUT("/problems/:id", handler.UpdateProblem(repo))
-	r.DELETE("/problems/:id", handler.DeleteProblem(repo))
+	// 附加调试身份中间件
+	r.Use(auth.AttachDebugIdentity())
+	ps := service.NewProblemService(repo)
+	r.POST("/problems", auth.Require(auth.PermProblemCreate), handler.CreateProblem(ps))
+	r.GET("/problems", handler.ListProblems(ps))
+	r.GET("/problems/:id", handler.GetProblem(ps))
+	r.PUT("/problems/:id", auth.Require(auth.PermProblemUpdate), handler.UpdateProblem(ps))
+	r.DELETE("/problems/:id", auth.Require(auth.PermProblemDelete), handler.DeleteProblem(ps))
 	return r
 }
 
@@ -50,12 +55,21 @@ func TestProblemCRUDLifecycle(t *testing.T) {
 	repo := &memoryRepo{}
 	r := setupProblemRouter(repo)
 
+	// 先测试未授权创建（缺少 create 权限）
+	wUnauth := httptest.NewRecorder()
+	reqUnauth, _ := http.NewRequest(http.MethodPost, "/problems", bytes.NewReader([]byte(`{"title":"X","description":"Y"}`)))
+	reqUnauth.Header.Set("Content-Type", "application/json")
+	// 不设置 X-Debug-Perms -> 只有 read
+	r.ServeHTTP(wUnauth, reqUnauth)
+	if wUnauth.Code != http.StatusForbidden { t.Fatalf("unauthorized create expected 403 got %d", wUnauth.Code) }
+
 	// ---- Create ----
 	createBody := map[string]string{"title": "A Problem", "description": "Desc..."}
 	cb, _ := json.Marshal(createBody)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(http.MethodPost, "/problems", bytes.NewReader(cb))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Debug-Perms", "problem.create,problem.update,problem.delete")
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusCreated { t.Fatalf("create expected 201 got %d", w.Code) }
 	var createResp struct { Data domain.Problem; Error *struct{Code string} }
@@ -76,6 +90,7 @@ func TestProblemCRUDLifecycle(t *testing.T) {
 	wUp := httptest.NewRecorder()
 	reqUp, _ := http.NewRequest(http.MethodPut, "/problems/"+pid.String(), bytes.NewReader(ub))
 	reqUp.Header.Set("Content-Type", "application/json")
+	reqUp.Header.Set("X-Debug-Perms", "problem.update,problem.delete")
 	r.ServeHTTP(wUp, reqUp)
 	if wUp.Code != http.StatusOK { t.Fatalf("update expected 200 got %d", wUp.Code) }
 	var upResp struct { Data domain.Problem }
@@ -94,6 +109,7 @@ func TestProblemCRUDLifecycle(t *testing.T) {
 	// ---- Delete ----
 	wDel := httptest.NewRecorder()
 	reqDel, _ := http.NewRequest(http.MethodDelete, "/problems/"+pid.String(), nil)
+	reqDel.Header.Set("X-Debug-Perms", "problem.delete")
 	r.ServeHTTP(wDel, reqDel)
 	if wDel.Code != http.StatusOK { t.Fatalf("delete expected 200 got %d", wDel.Code) }
 

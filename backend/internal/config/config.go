@@ -11,6 +11,7 @@ type Config struct {
 	Env         string
 	DB          DBConfig
 	Version     string
+	JWTSecret   string
 }
 
 type DBConfig struct {
@@ -36,7 +37,9 @@ func Load() Config {
 		Name:     firstNonEmpty(os.Getenv("POSTGRES_DB"), "codyssey"),
 		SSLMode:  firstNonEmpty(os.Getenv("POSTGRES_SSLMODE"), "disable"),
 	}
-	return Config{Port: port, Env: env, DB: db}
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" { jwtSecret = "dev-secret-change-me" }
+	return Config{Port: port, Env: env, DB: db, JWTSecret: jwtSecret}
 }
 
 func (d DBConfig) ConnString() string {
