@@ -1,48 +1,31 @@
 package main
 
 import (
+	"context"
 	"log"
-	"net/http"
-	"os"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/your-org/codyssey/backend/internal/config"
+	"github.com/your-org/codyssey/backend/internal/server"
 )
 
-var version = "0.1.0"
-
-func loadEnv() {
-	_ = godotenv.Load()
-}
-
-func setupRouter() *gin.Engine {
-	r := gin.Default()
-
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	r.GET("/version", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"version": version})
-	})
-
-	// Problem list stub
-	r.GET("/problems", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"data": []string{}})
-	})
-
-	return r
-}
+// buildVersion 通过 -ldflags "-X main.buildVersion=xxxx" 注入
+var buildVersion = "dev"
 
 func main() {
-	loadEnv()
-	port := os.Getenv("GO_BACKEND_PORT")
-	if port == "" {
-		port = "8080"
-	}
-	addr := ":" + port
-	log.Printf("Go backend listening on %s", addr)
-	if err := setupRouter().Run(addr); err != nil {
-		log.Fatalf("server error: %v", err)
-	}
+    _ = godotenv.Load()
+    cfg := config.Load()
+    cfg.Version = buildVersion
+
+    svc, err := server.New(cfg)
+    if err != nil {
+        log.Fatalf("init server: %v", err)
+    }
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    if err := svc.Start(ctx); err != nil {
+        log.Fatalf("start server: %v", err)
+    }
+    svc.WaitForShutdown()
 }

@@ -4,7 +4,7 @@
 
 ---
 
-## 快速开始（新增）
+## 快速开始
 
 ```bash
 # 克隆仓库后
@@ -62,60 +62,18 @@ docker compose up --build -d
 
 ---
 
-## 系统架构概览
-
-```mermaid
-flowchart LR
-    subgraph Client
-        FE["Next.js + Tailwind + shadcn/ui"]
-    end
-
-    subgraph Gateway
-        API["API Gateway / Load Balancer"]
-    end
-
-    subgraph Backend
-        GO["Go + Gin<br/>(Judging & Scheduling)"]
-        PY["Python + FastAPI<br/>(AI Services)"]
-    end
-
-    subgraph Infra
-        MQ["RabbitMQ<br/>Message Queue"]
-        DB["PostgreSQL<br/>Database"]
-        MINIO["MinIO<br/>Object Storage"]
-    end
-
-    subgraph Judging
-        WORKER["Judge Workers<br/>(Distributed)"]
-        SANDBOX["Judge0 Sandbox"]
-    end
-
-    FE --> API
-    API --> GO
-    API --> PY
-    GO --> MQ
-    PY --> DB
-    PY --> MINIO
-    MQ --> WORKER
-    WORKER --> SANDBOX
-    WORKER --> DB
-    SANDBOX --> DB
-    SANDBOX --> MINIO
-```
+> 更完整的系统架构、开发模式、路线图与 API 文档请参见 `docs/` 目录：
+> - `architecture.md`
+> - `project-structure.md`
+> - `development.md`
+> - `go-backend.md`
+> - `go-backend-api.md`
+> - `roadmap.md`
 
 ---
 
-## 项目目录结构（已初始化）
-
-```
-codyssey/
-├── backend/            # Go 后端 (Gin) - /health /version /problems 占位
-├── python/             # Python FastAPI AI 服务 - /health /ai/generate /ai/detect
-├── frontend/           # Next.js 前端
-├── infra/              # docker-compose 与后续 IaC
-├── docs/               # 文档（含 setup 指南）
-└── README.md
-```
+## 项目目录结构（概览）
+详见 `docs/project-structure.md`。
 
 ---
 
@@ -123,7 +81,7 @@ codyssey/
 
 | 功能 | 说明 | 当前状态 |
 | ---- | ---- | -------- |
-| 题目管理 | 题目 CRUD / AI 出题 | 规划 / stub |
+| 题目管理 | 题目 CRUD / AI 出题 | 基础 CRUD 已实现 / AI stub |
 | 竞赛管理 | 比赛创建、排名 | 规划 |
 | 判题系统 | 队列 + Worker + Judge0 | 未实现 |
 | AI 出题 | 调用大模型生成题目 | stub |
@@ -132,58 +90,13 @@ codyssey/
 
 ---
 
-## 开发与测试
-
-### 开发模式选择
-
-| 模式 | 描述 | 启动方式 | 优点 | 缺点 |
-| ---- | ---- | -------- | ---- | ---- |
-| Full Docker | 所有服务（前端/Go/Python/DB/MQ/MinIO）均容器化 | `docker compose up -d` | 一致性高，隔离好 | 热重载慢、资源占用更高 |
-| Hybrid (推荐) | 仅基础设施容器化，应用本地运行 | `docker compose -f infra/docker-compose.infra.yml up -d` + 本地 `go run`/`uvicorn`/`pnpm dev` | 开发体验佳、调试方便 | 需本地安装运行时 |
-
-### Hybrid 模式快速启动
-
-```bash
-# 1. 启动基础设施
-cp .env.example .env
-docker compose -f infra/docker-compose.infra.yml up -d
-
-# 2. 启动 Go 服务
-cd backend && go run .
-
-# 3. 启动 Python AI 服务
-cd python && uvicorn main:app --reload --port ${PY_BACKEND_PORT:-8000}
-
-# 4. 启动前端
-cd frontend && pnpm install && pnpm dev
-```
-
-### 全容器模式快速启动
-
-```bash
-cp .env.example .env
-cd infra
-docker compose up --build -d
-```
-
-```bash
-# Go 本地测试
-(cd backend && go test ./...)
-
-# Python 本地测试
-(cd python && pytest -q)
-```
+## 开发说明
+开发模式、常用命令、故障排查详见 `docs/development.md`。
 
 ---
 
-## 下一步计划
-
-1. 集成数据库访问层（Go + GORM 或 sqlc）
-2. 引入判题任务实体与消息发布逻辑
-3. 添加 Judge Worker 原型与 Judge0 对接
-4. Python 侧接入真实 AI 提供商（OpenAI / 本地 LLM）
-5. 统一认证与权限模型
-6. 提供 API 文档（OpenAPI / Swagger）
+## TODO / 路线图
+精细路线与阶段目标参见 `docs/roadmap.md`。
 
 ---
 
