@@ -70,17 +70,29 @@ go build -ldflags "-X main.buildVersion=$(git rev-parse --short HEAD)" -o bin/ba
 }
 ```
 
-### 日志
+### 日志 & 追踪 ID
 
-当前使用 `zap` development logger：
-- Dev 环境：人类可读
-- TODO：为 prod 环境增加结构化 JSON Logger + 请求追踪 (trace_id)
+使用 `zap`：
+- dev 环境：development encoder（便于阅读）
+- prod（规划）：JSON 结构化 + 采样（后续在配置中加入级别与采样率）
 
-### 最小迁移机制
+已实现：
+- Trace ID 中间件（为每个请求注入 trace_id 字段到日志与 context）
 
-`repository.EnsureSchema(ctx, pool)` 在启动时创建 `problems` 表（若不存在）。后续需要：
-- 引入真正迁移工具（如 `golang-migrate`）
-- 版本化迁移与回滚策略
+待办：
+- 与未来分布式追踪 (OpenTelemetry) 对齐（trace_id 复用 /propagation）。
+
+### 迁移机制
+
+当前：使用 goose 版本化 SQL（`backend/migrations`），启动时若配置 `AUTO_MIGRATE=true` 自动执行所有迁移。
+
+策略：
+- dev/test：默认允许自动迁移
+- prod：建议关闭自动迁移并在部署流水线显式执行
+
+待完善：
+- 回滚流程文档化
+- 数据变更的向后兼容策略（大表锁风险评估）
 
 ### 健康检查
 
@@ -88,16 +100,24 @@ go build -ldflags "-X main.buildVersion=$(git rev-parse --short HEAD)" -o bin/ba
 - DB Ping (成功 -> up / 失败 -> down)
 - 返回版本与环境
 
-### API 说明
-详细接口参考：`go-backend-api.md`。
+### API & OpenAPI
+详细接口参考：`go-backend-api.md`。OpenAPI 规范位于 `docs/openapi.yaml`，维护策略见 `openapi.md`。
 
+错误码集中在 `api_errors.md` 与代码 `internal/http/errcode` 包中。新增错误码需同时更新文档。
+
+go test ./...
 ### 测试策略
 
-类型：
-1. Handler 层 API 测试：使用 Gin + httptest + 内存仓储 (`memory_problem_repo.go`) → 避免 IO 依赖。
-2. 未来可加：
-   - 仓储集成测试（真实 PostgreSQL，使用事务回滚）
-   - 端到端 (E2E)：容器化环境 + 判题队列交互。
+当前已包含：
+1. Handler 层测试：Gin + httptest，使用内存/或真实仓储（隔离）
+2. 权限矩阵测试：验证角色与权限映射是否符合预期（减少安全回退）
+3. 指标暴露测试：确认核心 metrics 注册成功
+4. JudgeRun / Submission 状态流转测试（内部生命周期）
+
+规划补充：
+- 仓储集成测试：使用 PostgreSQL（docker）+ 事务回滚或 schema reset
+- Property-based 测试：状态机不变量（不可逆/非法转移拒绝）
+- E2E：提交→判题运行（引入 Worker stub 后）
 
 运行：
 ```
@@ -111,17 +131,31 @@ go test ./...
 - 公共返回格式后续标准化：`{"data": ..., "error": {"code":..., "message":...}}`。
 - 所有外部依赖通过构造函数或依赖注入层 (router/server) 传入。
 
-### 待办 / 演进路线
+### 已完成与待办
 
-- [ ] 标准化错误响应格式
-- [ ] 分页与过滤 (`GET /problems?page=1&page_size=20`)
-- [ ] OpenAPI / Swagger 生成
-- [ ] Auth/JWT 中间件 & RBAC（题目创建权限）
-- [ ] Judge 执行管线：提交、任务调度、结果回传
-- [ ] 统一日志与请求 ID (中间件)
-- [ ] golangci-lint 集成 + CI
-- [ ] 正式迁移工具引入 (migrate)
-- [ ] Metrics (Prometheus) & Tracing (OTel)
+已完成（持续更新）：
+- 统一错误响应 envelope（data/error 格式）
+- RBAC 权限体系（含 `judge_run.manage`）
+- JWT 鉴权（含 dev/test debug identity）
+- 状态机（Submission / JudgeRun）与条件更新防竞态
+- Prometheus 最小指标集（HTTP + 状态转移）
+- zap 日志 + trace_id 中间件
+- goose 迁移体系 + AutoMigrate 受控开关
+- golangci-lint 集成
+
+进行中 / 近期：
+- 分页与过滤公共库
+- OpenAPI 自动生成评估（swag vs oapi-codegen）
+- Judge Worker / Sandbox 对接 (队列 + 执行器)
+- 统一错误码 → HTTP 映射细化（加入 CONFLICT）
+- JudgeRun / Submission 冲突显式 409 区分
+- 增加 JudgeRun 执行耗时指标
+
+规划：
+- Tracing (OpenTelemetry)
+- 分布式调度 / 优先级队列
+- 指标：DB 查询耗时 / 沙箱执行耗时 / 重判批次指标
+- 安全：速率限制、审计日志、过期策略
 
 ### 快速 FAQ
 

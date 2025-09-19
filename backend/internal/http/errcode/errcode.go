@@ -13,6 +13,7 @@ const (
     CodeJudgeRunNotFound   = "JUDGE_RUN_NOT_FOUND"
     CodeInvalidStatus      = "INVALID_STATUS"
     CodeInvalidTransition  = "INVALID_TRANSITION"
+    CodeConflict           = "CONFLICT"
 )
 
 // Msg 提供默认错误消息，可在 handler 中覆盖
@@ -27,6 +28,7 @@ var Msg = map[string]string{
     CodeJudgeRunNotFound:   "judge run not found",
     CodeInvalidStatus:      "invalid status value",
     CodeInvalidTransition:  "invalid status transition",
+    CodeConflict:           "conflict",
 }
 
 func Text(code string) string {

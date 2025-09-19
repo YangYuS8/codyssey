@@ -1,0 +1,127 @@
+# 领域模型与状态机 (Domain Model)
+
+本文聚焦当前已实现或已建模的数据实体及其状态机：`Submission`、`JudgeRun`。后续新增实体（Contest、Ranking、AIAnalysis 等）可按相同步骤扩展。
+
+## 1. Submission
+
+### 1.1 目的
+表示用户对某题目的代码提交记录，是用户视角的“最终结果”载体。其评测可由 1..N 个 `JudgeRun` 支撑（未来支持多语言或重判）。
+
+### 1.2 字段（核心）
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| id | UUID | 主键 |
+| user_id | UUID | 提交者 |
+| problem_id | UUID | 题目 |
+| status | ENUM | 当前聚合状态（由评测结果驱动） |
+| created_at | timestamptz | 创建时间 |
+| updated_at | timestamptz | 更新时间 |
+
+### 1.3 状态机
+```
+ pending -> judging -> ( accepted | wrong_answer | error )
+```
+非法流转：
+- 任何终止状态（accepted / wrong_answer / error）不可再前进或回退
+- 跳过 `judging` 直接终止 → `INVALID_TRANSITION`
+- 未知目标状态值 → `INVALID_STATUS`
+
+Mermaid 可视化：
+```mermaid
+graph LR
+  P[pending] --> J[judging]
+  J --> A[accepted]
+  J --> W[wrong_answer]
+  J --> E[error]
+```
+
+### 1.4 失败与重新评测（规划）
+- 重判（rejudge）策略：创建新的 JudgeRun 批次并更新 Submission 聚合规则。
+- 聚合策略：首次 AC 即锁定（或允许配置：最新结果 / 最优结果）。
+
+## 2. JudgeRun
+
+### 2.1 目的
+表示一次具体判题执行（调度 → 沙箱执行 → 结果采集）。可视为底层工作单元；一个 Submission 可关联多次 JudgeRun（重判、不同执行环境等）。
+
+### 2.2 字段（核心）
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| id | UUID | 主键 |
+| submission_id | UUID | 所属 Submission |
+| status | ENUM | 判题执行状态 |
+| created_at | timestamptz | 创建时间 |
+| updated_at | timestamptz | 更新时间 |
+| started_at | timestamptz | 进入 running 时间（用于时长统计，后续暴露时长指标） |
+| finished_at | timestamptz | 结束时间 |
+
+### 2.3 状态机
+```
+ queued -> running -> ( succeeded | failed | canceled )
+```
+非法流转：
+- 直接从 queued 跳到终止状态（除 running）
+- 终止后再次更新
+- 未知状态值 → `INVALID_STATUS`
+- 不符合链路顺序 → `INVALID_TRANSITION`
+
+Mermaid 可视化：
+```mermaid
+graph LR
+  Q[queued] --> R[running]
+  R --> S[succeeded]
+  R --> F[failed]
+  R --> C[canceled]
+```
+
+### 2.4 与 Submission 的关系
+- 运行完成后（succeeded / failed / canceled）将影响 Submission 聚合逻辑：
+  * succeeded + 判分 → 决定 Submission 是否 accepted / wrong_answer / error
+  * failed → 可能映射为 Submission.error 或维持 judging（视重试策略）
+- 后续：Submission 的最终状态可来自最新一次成功的 JudgeRun 结果。
+
+## 3. 错误码与状态流转
+| 场景 | 错误码 | HTTP | 触发条件 |
+| ---- | ------ | ---- | -------- |
+| 目标状态枚举无效 | INVALID_STATUS | 400 | 输入状态不在允许集合 |
+| 状态链路非法 | INVALID_TRANSITION | 400 | 不符合状态图定义的有向边 |
+| 目标对象缺失 | SUBMISSION_NOT_FOUND / JUDGE_RUN_NOT_FOUND | 404 | ID 不存在 |
+| 竞争更新失败 | CONFLICT | 409 | 乐观锁 / 条件更新 0 行（例如并发状态更新或已被其它事务修改） |
+
+## 4. 并发与一致性
+- 采用条件更新（`WHERE id=? AND status=?`）方式保障状态单调性。
+- 当受影响行数为 0 且记录存在（被并发修改）：返回 `CONFLICT` (409)。
+- 调用方可捕获 `CONFLICT` 选择：重新读取最新状态 → 重新判定是否继续更新 / 放弃。
+
+## 5. 未来扩展点
+| 方向 | 说明 |
+| ---- | ---- |
+| 分布式调度 | 引入队列优先级、抢占、限流维度（如题目/用户配额）。 |
+| 计时指标 | 通过 started_at/finished_at 增加 `judge_run_duration_seconds`。 |
+| 重判批次 | 增加 RejudgeBatch 实体，跟踪一次批量重判影响范围。 |
+| 结果细粒度 | 引入 `test_case_results`（每个测试点耗时/内存/错误原因）。 |
+| 失败分类 | 扩展 failed 细分类（编译错误/运行超时/内存超限/沙箱异常）。 |
+
+## 6. 关联图（整体）
+```mermaid
+erDiagram
+  SUBMISSION ||--o{ JUDGERUN : has
+  SUBMISSION {
+    UUID id
+    UUID user_id
+    UUID problem_id
+    STRING status
+  }
+  JUDGERUN {
+    UUID id
+    UUID submission_id
+    STRING status
+  }
+```
+
+## 7. 维护策略
+- 新增状态：需更新：枚举、服务层校验、`metrics` 标签、`domain-model.md`、错误码文档。
+- 删除状态：需发布 BREAKING 说明，并迁移旧数据（DB / 代码 / 文档同步）。
+
+---
+如需扩展更多实体，请复制本文件结构：目的 → 字段 → 状态机 → 交互关系 → 错误 → 并发 → 扩展点。

@@ -440,70 +440,161 @@ paths:
     get:
       summary: 列出指定提交的判题运行记录
       operationId: listJudgeRunsBySubmission
-      security: [ { BearerAuth: [] } ]
+      security:
+        - BearerAuth: []
       parameters:
         - in: path
           name: id
           required: true
-          schema: { type: string }
+          schema:
+            type: string
         - in: query
           name: limit
-          schema: { type: integer, default: 20 }
+          schema:
+            type: integer
+            default: 20
         - in: query
           name: offset
-          schema: { type: integer, default: 0 }
+          schema:
+            type: integer
+            default: 0
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/JudgeRunListResponse' } } } }
-        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '403': { description: 无权限或非提交者, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '404': { description: 提交不存在, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '500': { description: 查询失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JudgeRunListResponse'
+        '401':
+          description: 未登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: 无权限或非提交者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: 提交不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: 查询失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /judge-runs/{id}:
     get:
       summary: 获取单个判题运行记录详情
       operationId: getJudgeRun
-      security: [ { BearerAuth: [] } ]
+      security:
+        - BearerAuth: []
       parameters:
         - in: path
           name: id
           required: true
-          schema: { type: string }
+          schema:
+            type: string
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/JudgeRunEnvelope' } } } }
-        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '403': { description: 无权限或非提交者, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '500': { description: 查询失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JudgeRunEnvelope'
+        '401':
+          description: 未登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: 无权限或非提交者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: 查询失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /internal/judge-runs/{id}/start:
     post:
       summary: 内部启动判题运行 (queued -> running)
-      description: 仅内部调度器或具备 judge_run.manage 权限的 system_admin 调用。若状态非 queued 返回 400 INVALID_TRANSITION。
+      description: |
+        仅内部调度器或具备 judge_run.manage 权限的 system_admin 调用。
+        若状态非 queued 返回 400 INVALID_TRANSITION。
       operationId: internalStartJudgeRun
-      security: [ { BearerAuth: [] } ]
+      security:
+        - BearerAuth: []
       parameters:
         - in: path
           name: id
           required: true
-          schema: { type: string }
+          schema:
+            type: string
       responses:
-        '200': { description: 已启动, content: { application/json: { schema: { $ref: '#/components/schemas/JudgeRunEnvelope' } } } }
-        '400': { description: 非法流转, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '403': { description: 无权限, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '404': { description: 运行记录不存在, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '200':
+          description: 已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JudgeRunEnvelope'
+        '400':
+          description: 非法流转
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: 未登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: 运行记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /internal/judge-runs/{id}/finish:
     post:
       summary: 内部结束判题运行 (running -> terminal)
-      description: 仅内部调度器或具备 judge_run.manage 权限的 system_admin；允许的 terminal status: succeeded, failed, canceled。
+      description: |
+        仅内部调度器或具备 judge_run.manage 权限的 system_admin。
+        允许的 terminal status: succeeded, failed, canceled。
       operationId: internalFinishJudgeRun
-      security: [ { BearerAuth: [] } ]
+      security:
+        - BearerAuth: []
       parameters:
         - in: path
           name: id
           required: true
-          schema: { type: string }
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -511,18 +602,49 @@ paths:
             schema:
               type: object
               properties:
-                status: { type: string, enum: [succeeded, failed, canceled] }
-                runtime_ms: { type: integer }
-                memory_kb: { type: integer }
-                exit_code: { type: integer }
-                error_message: { type: string }
+                status:
+                  type: string
+                  enum: [succeeded, failed, canceled]
+                runtime_ms:
+                  type: integer
+                memory_kb:
+                  type: integer
+                exit_code:
+                  type: integer
+                error_message:
+                  type: string
               required: [status]
       responses:
-        '200': { description: 已结束, content: { application/json: { schema: { $ref: '#/components/schemas/JudgeRunEnvelope' } } } }
-        '400': { description: 非法状态或非法流转, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '403': { description: 无权限, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
-        '404': { description: 运行记录不存在, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '200':
+          description: 已结束
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JudgeRunEnvelope'
+        '400':
+          description: 非法状态或非法流转
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: 未登录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: 运行记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
 components:
   securitySchemes:

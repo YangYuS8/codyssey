@@ -14,6 +14,7 @@ import (
 
 var (
     ErrSubmissionNotFound      = repository.ErrSubmissionNotFound
+    ErrSubmissionConflict      = repository.ErrSubmissionConflict
     ErrEmptyCode               = errors.New("submission code empty")
     ErrLanguageRequired        = errors.New("language required")
     ErrInvalidStatus           = errors.New("invalid submission status")

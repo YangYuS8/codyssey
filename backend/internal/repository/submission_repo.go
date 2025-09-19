@@ -12,7 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrSubmissionNotFound = errors.New("submission not found")
+var (
+    ErrSubmissionNotFound  = errors.New("submission not found")
+    ErrSubmissionConflict  = errors.New("submission status conflict")
+)
 
 type SubmissionRepository interface {
     Create(ctx context.Context, s domain.Submission) error
@@ -62,7 +65,7 @@ func (r *PGSubmissionRepository) UpdateStatus(ctx context.Context, id string, st
     if err != nil { return err }
     cmd, err := r.pool.Exec(ctx, `UPDATE submissions SET status=$1, version=version+1, updated_at=NOW() WHERE id=$2 AND status=$3`, status, id, cur.Status)
     if err != nil { return err }
-    if cmd.RowsAffected() == 0 { return errors.New("concurrent status change") }
+    if cmd.RowsAffected() == 0 { return ErrSubmissionConflict }
     return nil
 }
 

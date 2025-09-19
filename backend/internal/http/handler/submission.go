@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/YangYuS8/codyssey/backend/internal/auth"
+	"github.com/YangYuS8/codyssey/backend/internal/http/errcode"
 	"github.com/YangYuS8/codyssey/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -145,6 +146,8 @@ func UpdateSubmissionStatus(s *service.SubmissionService) gin.HandlerFunc {
             switch err {
             case service.ErrSubmissionNotFound:
                 respondError(c, http.StatusNotFound, "NOT_FOUND", "submission not found")
+            case service.ErrSubmissionConflict:
+                respondError(c, http.StatusConflict, errcode.CodeConflict, errcode.Text(errcode.CodeConflict))
             case service.ErrInvalidStatus:
                 respondError(c, http.StatusBadRequest, "INVALID_STATUS", err.Error())
             case service.ErrInvalidStatusTransition:
