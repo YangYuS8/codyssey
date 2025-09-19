@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/zap"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // register pgx driver for database/sql
 	"github.com/pressly/goose/v3"
 	"github.com/your-org/codyssey/backend/internal/config"
 	"github.com/your-org/codyssey/backend/internal/db"
@@ -70,13 +71,15 @@ func (s *Server) Start(ctx context.Context) error {
 
 // runMigrations 使用 goose 执行 backend/migrations 下的所有 Up 迁移
 func (s *Server) runMigrations() error {
-	dir := filepath.Join("backend", "migrations")
+	// 运行时当前工作目录是在 backend (Makefile: cd backend && go run .)
+	dir := filepath.Join("migrations")
+	s.logger.Info("running migrations", zap.String("driver", "pgx"), zap.String("dir", dir))
 	// 允许多次调用，goose 会记录版本
 	goose.SetLogger(goose.NopLogger()) // 静默；我们用 zap 记录
 	if err := goose.SetDialect("postgres"); err != nil { return err }
 	// 使用现有连接获取 *sql.DB: goose 期望 database/sql，而我们是 pgxpool -> 暂时改为使用 connString 新开标准库连接
 	// 简易方案：标准库打开（保持简单）；未来可换 pgx stdlib.
-	dbstd, err := goose.OpenDBWithDriver("postgres", s.cfg.DB.ConnString())
+	dbstd, err := goose.OpenDBWithDriver("pgx", s.cfg.DB.ConnString())
 	if err != nil { return err }
 	defer dbstd.Close()
 	if err := goose.Up(dbstd, dir); err != nil { return err }

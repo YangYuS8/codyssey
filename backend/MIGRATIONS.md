@@ -1,6 +1,6 @@
 # 数据库迁移（Go 后端 / goose）
 
-后端使用 [goose](https://github.com/pressly/goose) 管理数据库结构演进。迁移文件位于 `backend/migrations/` 目录，命名格式：
+后端使用 [goose](https://github.com/pressly/goose) 管理数据库结构演进（运行时通过 `pgx` stdlib 驱动执行）。迁移文件位于 `backend/migrations/` 目录，命名格式：
 
 ```
 <version>_<description>.sql
@@ -45,7 +45,7 @@ goose Up backend/migrations
 cd backend
 export $(grep -v '^#' ../.env | xargs)  # 或自行设置数据库变量
 # 直接使用连接串
-goose -dir ./migrations postgres "$DB_DSN" up
+goose -dir ./migrations pgx "$DB_DSN" up
 ```
 
 `$DB_DSN` 形如：
@@ -57,9 +57,9 @@ postgres://user:pass@localhost:5432/codyssey?sslmode=disable
 
 ```bash
 # 回滚一个版本
-goose -dir ./migrations postgres "$DB_DSN" down
+goose -dir ./migrations pgx "$DB_DSN" down
 # 回滚到指定版本
-goose -dir ./migrations postgres "$DB_DSN" up 0002
+goose -dir ./migrations pgx "$DB_DSN" up 0002
 ```
 
 ## 5. 常见问题
@@ -72,7 +72,7 @@ goose -dir ./migrations postgres "$DB_DSN" up 0002
 
 ## 6. 下一步扩展建议
 
-- 将 `runMigrations` 改为使用 pgx stdlib：`import _ "github.com/jackc/pgx/v5/stdlib"`，然后 `sql.Open("pgx", dsn)`。
+- （已采用）使用 pgx stdlib：`import _ "github.com/jackc/pgx/v5/stdlib"` + `sql.Open("pgx", dsn)`。
 - 增加 `users`, `submissions`, `contests`, `judge_runs` 等表的分阶段迁移。
 - 为关键表添加索引与约束（唯一、外键）。
 
