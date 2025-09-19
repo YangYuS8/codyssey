@@ -1,0 +1,4 @@
+github.com/gin-gonic/gin v1.10.0 h1:nTuyha1TY2pY2DoVWSdwult4Zk2EXUXFzj/B8jh7H40=
+github.com/gin-gonic/gin v1.10.0/go.mod h1:W1GFbLq9N1N6V+0DutRbImE7pA474egt0SqQ35ZmLk4=
+github.com/joho/godotenv v1.5.1 h1:nJ6Vb+ZJA4+fBsfR4kBBqV0v5A5gdGsrG2cUp7PKl0s=
+github.com/joho/godotenv v1.5.1/go.mod h1:7hD/27E4gF6R3hFCdKgzKnh8SxtkAnG8KkGZf3UX1ew=
