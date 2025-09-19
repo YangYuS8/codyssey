@@ -63,9 +63,10 @@ func Setup(dep Dependencies) *gin.Engine {
 
     if dep.SubmissionRepo != nil {
         ss := service.NewSubmissionService(dep.SubmissionRepo)
-        // 暂时不加 Require 权限；仅登录用户可创建（handler 内部校验），获取逻辑在 handler 内部做最小限制
+        // 创建沿用 handler 内部校验登录，列表与单个获取加精细权限（list / get）
         r.POST("/submissions", handler.CreateSubmission(ss))
-        r.GET("/submissions/:id", handler.GetSubmission(ss))
+        r.GET("/submissions", auth.Require(auth.PermSubmissionList), handler.ListSubmissions(ss))
+        r.GET("/submissions/:id", auth.Require(auth.PermSubmissionGet), handler.GetSubmission(ss))
     }
 
 	return r

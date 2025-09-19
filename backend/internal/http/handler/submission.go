@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/YangYuS8/codyssey/backend/internal/auth"
@@ -74,6 +75,40 @@ func GetSubmission(s *service.SubmissionService) gin.HandlerFunc {
             sub.Code = ""
         }
         respondOK(c, sub, nil)
+    }
+}
+
+// ListSubmissions 列表：支持按 user_id / problem_id / status 过滤，分页 limit/offset。
+// 代码可见性：仅 owner 或 teacher/system_admin 角色保留 code，其余清空。
+func ListSubmissions(s *service.SubmissionService) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        id := auth.GetIdentity(c)
+        if id == nil || id.UserID == "guest" { // 经过权限中间件理论上不会出现 guest，这里兜底
+            respondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "login required")
+            return
+        }
+        limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+        offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+        filter := service.SubmissionListFilter{
+            UserID:    strings.TrimSpace(c.Query("user_id")),
+            ProblemID: strings.TrimSpace(c.Query("problem_id")),
+            Status:    strings.TrimSpace(c.Query("status")),
+            Limit:     limit,
+            Offset:    offset,
+        }
+        subs, err := s.List(c.Request.Context(), filter)
+        if err != nil {
+            respondError(c, http.StatusInternalServerError, "LIST_FAILED", err.Error())
+            return
+        }
+        // redaction
+        if !hasAnyRole(id, auth.RoleSystemAdmin, auth.RoleTeacher) {
+            for i := range subs {
+                if subs[i].UserID != id.UserID { subs[i].Code = "" }
+            }
+        }
+        meta := map[string]int{"limit": limit, "offset": offset, "count": len(subs)}
+        respondOK(c, subs, meta)
     }
 }
 

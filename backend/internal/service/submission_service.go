@@ -21,6 +21,7 @@ type SubmissionRepo interface {
     Create(ctx context.Context, s domain.Submission) error
     GetByID(ctx context.Context, id string) (domain.Submission, error)
     UpdateStatus(ctx context.Context, id string, status string) error
+    List(ctx context.Context, f repository.SubmissionFilter, limit, offset int) ([]domain.Submission, error)
 }
 
 type SubmissionService struct { repo SubmissionRepo }
@@ -37,4 +38,18 @@ func (s *SubmissionService) Create(ctx context.Context, userID, problemID, langu
 
 func (s *SubmissionService) Get(ctx context.Context, id string) (domain.Submission, error) {
     return s.repo.GetByID(ctx, id)
+}
+
+type SubmissionListFilter struct {
+    UserID    string
+    ProblemID string
+    Status    string
+    Limit     int
+    Offset    int
+}
+
+func (s *SubmissionService) List(ctx context.Context, f SubmissionListFilter) ([]domain.Submission, error) {
+    limit := f.Limit; offset := f.Offset
+    if limit <= 0 { limit = 20 }
+    return s.repo.List(ctx, repository.SubmissionFilter{UserID: f.UserID, ProblemID: f.ProblemID, Status: f.Status}, limit, offset)
 }

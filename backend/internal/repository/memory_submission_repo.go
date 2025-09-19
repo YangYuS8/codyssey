@@ -38,3 +38,21 @@ func (m *MemorySubmissionRepository) UpdateStatus(ctx context.Context, id string
     for i, s := range m.list { if s.ID == id { m.list[i].Status = status; m.list[i].UpdatedAt = time.Now().UTC(); return nil } }
     return ErrSubmissionNotFound
 }
+
+func (m *MemorySubmissionRepository) List(ctx context.Context, f SubmissionFilter, limit, offset int) ([]domain.Submission, error) {
+    m.mu.RLock(); defer m.mu.RUnlock()
+    if limit <= 0 { limit = 20 }
+    if offset < 0 { offset = 0 }
+    filtered := make([]domain.Submission,0,len(m.list))
+    for _, s := range m.list {
+        if f.UserID != "" && s.UserID != f.UserID { continue }
+        if f.ProblemID != "" && s.ProblemID != f.ProblemID { continue }
+        if f.Status != "" && s.Status != f.Status { continue }
+        filtered = append(filtered, s)
+    }
+    if offset >= len(filtered) { return []domain.Submission{}, nil }
+    end := offset + limit; if end > len(filtered) { end = len(filtered) }
+    res := make([]domain.Submission, end-offset)
+    copy(res, filtered[offset:end])
+    return res, nil
+}
