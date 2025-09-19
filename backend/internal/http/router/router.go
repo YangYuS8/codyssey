@@ -24,6 +24,7 @@ type Dependencies struct {
     UserRepo    service.UserRepo
     AuthService *auth.AuthService
     SubmissionRepo service.SubmissionRepo
+    SubmissionStatusLogRepo service.SubmissionStatusLogRepo
     HealthCheck handler.HealthChecker
     Version     string
     Env         string
@@ -62,11 +63,13 @@ func Setup(dep Dependencies) *gin.Engine {
     }
 
     if dep.SubmissionRepo != nil {
-        ss := service.NewSubmissionService(dep.SubmissionRepo)
+        ss := service.NewSubmissionService(dep.SubmissionRepo, dep.SubmissionStatusLogRepo)
         // 创建沿用 handler 内部校验登录，列表与单个获取加精细权限（list / get）
         r.POST("/submissions", handler.CreateSubmission(ss))
         r.GET("/submissions", auth.Require(auth.PermSubmissionList), handler.ListSubmissions(ss))
         r.GET("/submissions/:id", auth.Require(auth.PermSubmissionGet), handler.GetSubmission(ss))
+        r.PATCH("/submissions/:id/status", auth.Require(auth.PermSubmissionUpdateStatus), handler.UpdateSubmissionStatus(ss))
+        r.GET("/submissions/:id/logs", auth.Require(auth.PermSubmissionGet), handler.ListSubmissionStatusLogs(ss))
     }
 
 	return r

@@ -19,6 +19,7 @@ type SubmissionRepository interface {
     GetByID(ctx context.Context, id string) (domain.Submission, error)
     UpdateStatus(ctx context.Context, id string, status string) error
     List(ctx context.Context, filter SubmissionFilter, limit, offset int) ([]domain.Submission, error)
+    Count(ctx context.Context, filter SubmissionFilter) (int, error)
 }
 
 // SubmissionFilter 用于列表过滤
@@ -37,15 +38,18 @@ func (r *PGSubmissionRepository) Create(ctx context.Context, s domain.Submission
     now := time.Now().UTC()
     if s.CreatedAt.IsZero() { s.CreatedAt = now }
     s.UpdatedAt = now
-    _, err := r.pool.Exec(ctx, `INSERT INTO submissions (id, user_id, problem_id, language, code, status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        s.ID, s.UserID, s.ProblemID, s.Language, s.Code, s.Status, s.CreatedAt, s.UpdatedAt)
+    // version 初始为 1
+    if s.Version == 0 { s.Version = 1 }
+    _, err := r.pool.Exec(ctx, `INSERT INTO submissions (id, user_id, problem_id, language, code, status, runtime_ms, memory_kb, error_message, version, created_at, updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        s.ID, s.UserID, s.ProblemID, s.Language, s.Code, s.Status, s.RuntimeMS, s.MemoryKB, s.ErrorMessage, s.Version, s.CreatedAt, s.UpdatedAt)
     return err
 }
 
 func (r *PGSubmissionRepository) GetByID(ctx context.Context, id string) (domain.Submission, error) {
-    row := r.pool.QueryRow(ctx, `SELECT id, user_id, problem_id, language, code, status, created_at, updated_at FROM submissions WHERE id=$1`, id)
+    row := r.pool.QueryRow(ctx, `SELECT id, user_id, problem_id, language, code, status, runtime_ms, memory_kb, error_message, version, created_at, updated_at FROM submissions WHERE id=$1`, id)
     var s domain.Submission
-    if err := row.Scan(&s.ID, &s.UserID, &s.ProblemID, &s.Language, &s.Code, &s.Status, &s.CreatedAt, &s.UpdatedAt); err != nil {
+    if err := row.Scan(&s.ID, &s.UserID, &s.ProblemID, &s.Language, &s.Code, &s.Status, &s.RuntimeMS, &s.MemoryKB, &s.ErrorMessage, &s.Version, &s.CreatedAt, &s.UpdatedAt); err != nil {
         if strings.Contains(err.Error(), "no rows") { return domain.Submission{}, ErrSubmissionNotFound }
         return domain.Submission{}, err
     }
@@ -53,7 +57,7 @@ func (r *PGSubmissionRepository) GetByID(ctx context.Context, id string) (domain
 }
 
 func (r *PGSubmissionRepository) UpdateStatus(ctx context.Context, id string, status string) error {
-    cmd, err := r.pool.Exec(ctx, `UPDATE submissions SET status=$1, updated_at=NOW() WHERE id=$2`, status, id)
+    cmd, err := r.pool.Exec(ctx, `UPDATE submissions SET status=$1, version=version+1, updated_at=NOW() WHERE id=$2`, status, id)
     if err != nil { return err }
     if cmd.RowsAffected() == 0 { return ErrSubmissionNotFound }
     return nil
@@ -70,17 +74,31 @@ func (r *PGSubmissionRepository) List(ctx context.Context, f SubmissionFilter, l
     if f.Status != "" { clauses = append(clauses, "status=$"+itoa(idx)); args = append(args, f.Status); idx++ }
     // pagination
     args = append(args, limit, offset)
-    q := `SELECT id, user_id, problem_id, language, code, status, created_at, updated_at FROM submissions WHERE ` + strings.Join(clauses, " AND ") + ` ORDER BY created_at DESC LIMIT $` + itoa(idx) + ` OFFSET $` + itoa(idx+1)
+    q := `SELECT id, user_id, problem_id, language, code, status, runtime_ms, memory_kb, error_message, version, created_at, updated_at FROM submissions WHERE ` + strings.Join(clauses, " AND ") + ` ORDER BY created_at DESC LIMIT $` + itoa(idx) + ` OFFSET $` + itoa(idx+1)
     rows, err := r.pool.Query(ctx, q, args...)
     if err != nil { return nil, err }
     defer rows.Close()
     res := make([]domain.Submission,0,limit)
     for rows.Next() {
         var s domain.Submission
-        if err := rows.Scan(&s.ID,&s.UserID,&s.ProblemID,&s.Language,&s.Code,&s.Status,&s.CreatedAt,&s.UpdatedAt); err != nil { return nil, err }
+        if err := rows.Scan(&s.ID,&s.UserID,&s.ProblemID,&s.Language,&s.Code,&s.Status,&s.RuntimeMS,&s.MemoryKB,&s.ErrorMessage,&s.Version,&s.CreatedAt,&s.UpdatedAt); err != nil { return nil, err }
         res = append(res, s)
     }
     return res, nil
+}
+
+func (r *PGSubmissionRepository) Count(ctx context.Context, f SubmissionFilter) (int, error) {
+    clauses := []string{"1=1"}
+    args := []any{}
+    idx := 1
+    if f.UserID != "" { clauses = append(clauses, "user_id=$"+itoa(idx)); args = append(args, f.UserID); idx++ }
+    if f.ProblemID != "" { clauses = append(clauses, "problem_id=$"+itoa(idx)); args = append(args, f.ProblemID); idx++ }
+    if f.Status != "" { clauses = append(clauses, "status=$"+itoa(idx)); args = append(args, f.Status); idx++ }
+    q := `SELECT COUNT(*) FROM submissions WHERE ` + strings.Join(clauses, " AND ")
+    row := r.pool.QueryRow(ctx, q, args...)
+    var total int
+    if err := row.Scan(&total); err != nil { return 0, err }
+    return total, nil
 }
 
 // 简易 int->string (避免 strconv 每次导入)

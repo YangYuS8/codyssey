@@ -63,7 +63,7 @@ func TestSubmission_List_Visibility_And_Filter(t *testing.T) {
     respA, err := http.DefaultClient.Do(reqA)
     require.NoError(t, err)
     require.Equal(t, http.StatusOK, respA.StatusCode)
-    var listA struct { Data []struct { UserID string `json:"user_id"`; Code string `json:"code"` } `json:"data"` }
+    var listA struct { Data []struct { UserID string `json:"user_id"`; Code string `json:"code"` } `json:"data"`; Meta struct { Total int `json:"total"` } `json:"meta"` }
     _ = json.NewDecoder(respA.Body).Decode(&listA)
     require.Len(t, listA.Data, 3)
     var ownWithCode, othersWithout int
@@ -76,6 +76,7 @@ func TestSubmission_List_Visibility_And_Filter(t *testing.T) {
     }
     require.Equal(t, 2, ownWithCode)
     require.Equal(t, 1, othersWithout)
+    require.Equal(t, 3, listA.Meta.Total)
 
     // teacher 列表：全部 3 条且都有 code
     reqT,_ := http.NewRequest(http.MethodGet, srv.URL+"/submissions", nil)
@@ -83,10 +84,11 @@ func TestSubmission_List_Visibility_And_Filter(t *testing.T) {
     respT, err := http.DefaultClient.Do(reqT)
     require.NoError(t, err)
     require.Equal(t, http.StatusOK, respT.StatusCode)
-    var listT struct { Data []struct { Code string `json:"code"` } `json:"data"` }
+    var listT struct { Data []struct { Code string `json:"code"` } `json:"data"`; Meta struct { Total int `json:"total"` } `json:"meta"` }
     _ = json.NewDecoder(respT.Body).Decode(&listT)
     require.Len(t, listT.Data, 3)
     for _, it := range listT.Data { require.NotEmpty(t, it.Code) }
+    require.Equal(t, 3, listT.Meta.Total)
 
     // 过滤 user_id=userB 只剩 1 条
     reqFilter,_ := http.NewRequest(http.MethodGet, srv.URL+"/submissions?user_id=userB", nil)
@@ -94,8 +96,9 @@ func TestSubmission_List_Visibility_And_Filter(t *testing.T) {
     respFilter, err := http.DefaultClient.Do(reqFilter)
     require.NoError(t, err)
     require.Equal(t, http.StatusOK, respFilter.StatusCode)
-    var listFilter struct { Data []struct { UserID string `json:"user_id"` } `json:"data"` }
+    var listFilter struct { Data []struct { UserID string `json:"user_id"` } `json:"data"`; Meta struct { Total int `json:"total"` } `json:"meta"` }
     _ = json.NewDecoder(respFilter.Body).Decode(&listFilter)
     require.Len(t, listFilter.Data, 1)
     require.Equal(t, "userB", listFilter.Data[0].UserID)
+    require.Equal(t, 1, listFilter.Meta.Total)
 }

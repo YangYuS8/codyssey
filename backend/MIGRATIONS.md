@@ -87,6 +87,8 @@ goose -dir ./migrations pgx "$DB_DSN" up 0002
  - 0004_add_password_hash_to_users.sql: 添加 `password_hash` 列（可为 NULL 兼容旧数据；新注册必须写入）。
 	 - 密码使用 bcrypt(DefaultCost) 存储；若后续需要更强策略（argon2id / pepper），新增迁移与逻辑即可。
 	 - Refresh/Access Token 均使用对称 HS256 JWT，后续可引入旋转/黑名单（存储 refresh jti）。
+ - 0005_create_submissions.sql: 初始 `submissions` 表，包含基础字段（status 默认 pending）。
+ - 0006_add_submission_metrics_and_logs.sql: 为 `submissions` 增加执行指标列：`runtime_ms INT DEFAULT 0`、`memory_kb INT DEFAULT 0`、`error_message TEXT NULL`、`version INT DEFAULT 1`，并新增 `submission_status_logs` 表记录状态流转（from_status -> to_status, created_at）。
 
 ## 7. 约定
 

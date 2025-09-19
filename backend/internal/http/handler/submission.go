@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/YangYuS8/codyssey/backend/internal/auth"
 	"github.com/YangYuS8/codyssey/backend/internal/service"
@@ -14,6 +15,19 @@ type SubmissionCreateRequest struct {
     ProblemID string `json:"problem_id" binding:"required"`
     Language  string `json:"language" binding:"required"`
     Code      string `json:"code" binding:"required"`
+}
+
+type SubmissionUpdateStatusRequest struct {
+    Status string `json:"status" binding:"required"`
+}
+
+// SubmissionStatusLogResponse 用于返回日志（结构简单直接复用 domain 字段名）
+type SubmissionStatusLogResponse struct {
+    ID           string `json:"id"`
+    SubmissionID string `json:"submission_id"`
+    FromStatus   string `json:"from_status"`
+    ToStatus     string `json:"to_status"`
+    CreatedAt    string `json:"created_at"`
 }
 
 // CreateSubmission 处理创建提交
@@ -96,18 +110,15 @@ func ListSubmissions(s *service.SubmissionService) gin.HandlerFunc {
             Limit:     limit,
             Offset:    offset,
         }
-        subs, err := s.List(c.Request.Context(), filter)
-        if err != nil {
-            respondError(c, http.StatusInternalServerError, "LIST_FAILED", err.Error())
-            return
-        }
+        subs, total, err := s.ListWithTotal(c.Request.Context(), filter)
+        if err != nil { respondError(c, http.StatusInternalServerError, "LIST_FAILED", err.Error()); return }
         // redaction
         if !hasAnyRole(id, auth.RoleSystemAdmin, auth.RoleTeacher) {
             for i := range subs {
                 if subs[i].UserID != id.UserID { subs[i].Code = "" }
             }
         }
-        meta := map[string]int{"limit": limit, "offset": offset, "count": len(subs)}
+        meta := map[string]int{"limit": limit, "offset": offset, "count": len(subs), "total": total}
         respondOK(c, subs, meta)
     }
 }
@@ -120,4 +131,53 @@ func hasAnyRole(id *auth.Identity, roles ...string) bool {
         }
     }
     return false
+}
+
+// UpdateSubmissionStatus 更新单个提交的判题状态（需 submission.update_status 权限 + 状态机校验）
+func UpdateSubmissionStatus(s *service.SubmissionService) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        subID := c.Param("id")
+        if strings.TrimSpace(subID) == "" { respondError(c, http.StatusBadRequest, "INVALID_ID", "empty id"); return }
+        var req SubmissionUpdateStatusRequest
+        if err := c.ShouldBindJSON(&req); err != nil { respondError(c, http.StatusBadRequest, "INVALID_BODY", err.Error()); return }
+        updated, err := s.UpdateStatus(c.Request.Context(), subID, req.Status)
+        if err != nil {
+            switch err {
+            case service.ErrSubmissionNotFound:
+                respondError(c, http.StatusNotFound, "NOT_FOUND", "submission not found")
+            case service.ErrInvalidStatus:
+                respondError(c, http.StatusBadRequest, "INVALID_STATUS", err.Error())
+            case service.ErrInvalidStatusTransition:
+                respondError(c, http.StatusBadRequest, "INVALID_TRANSITION", err.Error())
+            default:
+                respondError(c, http.StatusInternalServerError, "UPDATE_STATUS_FAILED", err.Error())
+            }
+            return
+        }
+        // 按可见性规则（更新后返回时，非管理员/老师且非 owner 不返回 code）
+        id := auth.GetIdentity(c)
+        if id == nil || (id.UserID != updated.UserID && !hasAnyRole(id, auth.RoleSystemAdmin, auth.RoleTeacher)) {
+            updated.Code = ""
+        }
+        respondOK(c, updated, nil)
+    }
+}
+
+// ListSubmissionStatusLogs 获取指定提交的状态流转日志
+func ListSubmissionStatusLogs(s *service.SubmissionService) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        subID := c.Param("id")
+        if strings.TrimSpace(subID) == "" { respondError(c, http.StatusBadRequest, "INVALID_ID", "empty id"); return }
+        limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+        offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+        logs, err := s.ListStatusLogs(c.Request.Context(), subID, limit, offset)
+        if err != nil { respondError(c, http.StatusInternalServerError, "LIST_LOGS_FAILED", err.Error()); return }
+        // 映射输出
+        out := make([]SubmissionStatusLogResponse, 0, len(logs))
+        for _, l := range logs {
+            out = append(out, SubmissionStatusLogResponse{ID: l.ID, SubmissionID: l.SubmissionID, FromStatus: l.FromStatus, ToStatus: l.ToStatus, CreatedAt: l.CreatedAt.Format(time.RFC3339)})
+        }
+        meta := map[string]int{"limit":limit, "offset":offset, "count": len(out)}
+        respondOK(c, out, meta)
+    }
 }

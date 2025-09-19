@@ -365,6 +365,51 @@ paths:
         '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '500': { description: 获取失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    patch:
+      summary: 更新提交判题状态
+      description: 仅 teacher / system_admin（具备 submission.update_status 权限）。状态流转：pending -> judging -> (accepted|wrong_answer|error)。
+      operationId: updateSubmissionStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubmissionUpdateStatusRequest' }
+      responses:
+        '200': { description: 已更新, content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionEnvelope' } } } }
+        '400': { description: 非法状态或非法流转, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 无权限, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 更新失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /submissions/{id}/logs:
+    get:
+      summary: 获取提交的状态流转日志
+      operationId: listSubmissionStatusLogs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionStatusLogListResponse' } } } }
+        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '403': { description: 无权限, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 查询失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
 
 components:
   securitySchemes:
@@ -424,6 +469,7 @@ components:
             limit: { type: integer }
             offset: { type: integer }
             count: { type: integer }
+            total: { type: integer, description: 匹配过滤条件的总条目数 }
         error: { nullable: true }
       required: [data, meta]
     HealthResponse:
@@ -522,9 +568,13 @@ components:
         language: { type: string }
         code: { type: string, description: "若非 owner 且无 teacher/system_admin 角色，此字段为空字符串" }
         status: { type: string }
+        runtime_ms: { type: integer, description: 执行耗时毫秒 }
+        memory_kb: { type: integer, description: 峰值内存 KB }
+        error_message: { type: string, nullable: true }
+        version: { type: integer, description: 乐观锁/变更计数 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-      required: [id, user_id, problem_id, language, status, created_at, updated_at]
+      required: [id, user_id, problem_id, language, status, version, created_at, updated_at]
     SubmissionCreateRequest:
       type: object
       properties:
@@ -538,12 +588,42 @@ components:
         data: { $ref: '#/components/schemas/Submission' }
         error: { nullable: true }
       required: [data]
+    SubmissionUpdateStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, judging, accepted, wrong_answer, error]
+      required: [status]
     SubmissionListResponse:
       type: object
       properties:
         data:
           type: array
           items: { $ref: '#/components/schemas/Submission' }
+        meta:
+          type: object
+          properties:
+            limit: { type: integer }
+            offset: { type: integer }
+            count: { type: integer }
+        error: { nullable: true }
+      required: [data, meta]
+    SubmissionStatusLog:
+      type: object
+      properties:
+        id: { type: string }
+        submission_id: { type: string }
+        from_status: { type: string }
+        to_status: { type: string }
+        created_at: { type: string, format: date-time }
+      required: [id, submission_id, from_status, to_status, created_at]
+    SubmissionStatusLogListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SubmissionStatusLog' }
         meta:
           type: object
           properties:
