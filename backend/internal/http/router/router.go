@@ -6,6 +6,7 @@ import (
 	"github.com/YangYuS8/codyssey/backend/internal/auth"
 	"github.com/YangYuS8/codyssey/backend/internal/domain"
 	"github.com/YangYuS8/codyssey/backend/internal/http/handler"
+	"github.com/YangYuS8/codyssey/backend/internal/http/middleware"
 	"github.com/YangYuS8/codyssey/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -33,7 +34,7 @@ type Dependencies struct {
 
 func Setup(dep Dependencies) *gin.Engine {
     r := gin.New()
-    r.Use(gin.Logger(), gin.Recovery(), auth.AttachDebugIdentity())
+    r.Use(gin.Logger(), gin.Recovery(), middleware.TraceID(), auth.AttachDebugIdentity())
 
 	r.GET("/health", handler.Health(dep.Version, dep.Env, dep.HealthCheck))
 	r.GET("/version", func(c *gin.Context) { c.JSON(200, gin.H{"version": dep.Version}) })
@@ -77,6 +78,9 @@ func Setup(dep Dependencies) *gin.Engine {
             r.POST("/submissions/:id/runs", auth.Require(auth.PermJudgeRunEnqueue), handler.EnqueueJudgeRun(jrAdapter, ss))
             r.GET("/submissions/:id/runs", auth.Require(auth.PermJudgeRunList), handler.ListJudgeRuns(jrAdapter, ss))
             r.GET("/judge-runs/:id", auth.Require(auth.PermJudgeRunGet), handler.GetJudgeRun(jrAdapter, ss))
+            // 内部判题执行控制（仅 system_admin: judge_run.manage）
+            r.POST("/internal/judge-runs/:id/start", auth.Require(auth.PermJudgeRunManage), handler.InternalStartJudgeRun(jrAdapter))
+            r.POST("/internal/judge-runs/:id/finish", auth.Require(auth.PermJudgeRunManage), handler.InternalFinishJudgeRun(jrAdapter))
         }
     }
 

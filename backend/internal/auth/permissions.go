@@ -37,6 +37,8 @@ const (
     PermJudgeRunEnqueue Permission = "judge_run.enqueue"
     PermJudgeRunGet     Permission = "judge_run.get"
     PermJudgeRunList    Permission = "judge_run.list"
+    // 内部管理（start/finish 调度权限）
+    PermJudgeRunManage  Permission = "judge_run.manage"
 )
 
 // 简单用户身份模型（后续替换为 JWT 解析结果）
@@ -63,7 +65,7 @@ var rolePermissionMap = map[string][]Permission{
     RoleSystemAdmin: {PermProblemCreate, PermProblemUpdate, PermProblemDelete, PermProblemRead, PermProblemList, PermProblemGet,
         PermUserCreate, PermUserRead, PermUserList, PermUserGet, PermUserUpdateRoles, PermUserDelete,
         PermSubmissionCreate, PermSubmissionGet, PermSubmissionList, PermSubmissionUpdateStatus,
-        PermJudgeRunEnqueue, PermJudgeRunGet, PermJudgeRunList},
+        PermJudgeRunEnqueue, PermJudgeRunGet, PermJudgeRunList, PermJudgeRunManage},
     RoleTeacher:     {PermProblemCreate, PermProblemUpdate, PermProblemDelete, PermProblemRead, PermProblemList, PermProblemGet,
         PermUserRead, PermUserList, PermUserGet,
         PermSubmissionCreate, PermSubmissionGet, PermSubmissionList, PermSubmissionUpdateStatus,

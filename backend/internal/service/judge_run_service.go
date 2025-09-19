@@ -107,3 +107,6 @@ func (a *JudgeRunHTTPAdapter) Get(ctx context.Context, id string) (JudgeRunDTO, 
     if err != nil { return JudgeRunDTO{}, err }
     return toDTO(jr), nil
 }
+
+// Expose underlying service for internal handler usage (start/finish)
+func (a *JudgeRunHTTPAdapter) Service() *JudgeRunService { return a.svc }

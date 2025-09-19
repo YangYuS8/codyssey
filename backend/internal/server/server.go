@@ -53,16 +53,20 @@ func (s *Server) Start(ctx context.Context) error {
 	problemRepo := repository.NewPGProblemRepository(database.Pool)
 	userRepo := repository.NewPGUserRepository(database.Pool)
 	submissionRepo := repository.NewPGSubmissionRepository(database.Pool)
+	judgeRunRepo := repository.NewPGJudgeRunRepository(database.Pool)
+	statusLogRepo := repository.NewPGSubmissionStatusLogRepository(database.Pool)
 	jwtMgr := auth.NewJWTManager(os.Getenv("JWT_SECRET"), 15*time.Minute, 7*24*time.Hour)
 	authService := auth.NewAuthService(userRepo, jwtMgr)
 	deps := router.Dependencies{
-		ProblemRepo:    problemRepo,
-		UserRepo:       userRepo,
-		AuthService:    authService,
-		SubmissionRepo: submissionRepo,
-		HealthCheck:    healthProbe{s: s},
-		Version:        s.cfg.Version,
-		Env:            s.cfg.Env,
+		ProblemRepo:            problemRepo,
+		UserRepo:               userRepo,
+		AuthService:            authService,
+		SubmissionRepo:         submissionRepo,
+		SubmissionStatusLogRepo: statusLogRepo,
+		JudgeRunRepo:           judgeRunRepo,
+		HealthCheck:            healthProbe{s: s},
+		Version:                s.cfg.Version,
+		Env:                    s.cfg.Env,
 	}
 	r := router.Setup(deps)
 
