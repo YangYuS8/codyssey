@@ -22,6 +22,8 @@ type ProblemRepo interface {
 type Dependencies struct {
     ProblemRepo ProblemRepo
     UserRepo    service.UserRepo
+    AuthService *auth.AuthService
+    SubmissionRepo service.SubmissionRepo
     HealthCheck handler.HealthChecker
     Version     string
     Env         string
@@ -50,6 +52,20 @@ func Setup(dep Dependencies) *gin.Engine {
         r.GET("/users/:id", auth.Require(auth.PermUserGet), handler.GetUser(us))
         r.PUT("/users/:id/roles", auth.Require(auth.PermUserUpdateRoles), handler.UpdateUserRoles(us))
         r.DELETE("/users/:id", auth.Require(auth.PermUserDelete), handler.DeleteUser(us))
+    }
+
+    if dep.AuthService != nil {
+        ah := handler.NewAuthHandlers(dep.AuthService)
+        r.POST("/auth/register", ah.Register)
+        r.POST("/auth/login", ah.Login)
+        r.POST("/auth/refresh", ah.Refresh)
+    }
+
+    if dep.SubmissionRepo != nil {
+        ss := service.NewSubmissionService(dep.SubmissionRepo)
+        // 暂时不加 Require 权限；仅登录用户可创建（handler 内部校验），获取逻辑在 handler 内部做最小限制
+        r.POST("/submissions", handler.CreateSubmission(ss))
+        r.GET("/submissions/:id", handler.GetSubmission(ss))
     }
 
 	return r

@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	h "github.com/YangYuS8/codyssey/backend/internal/http/handler"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
 )
@@ -89,12 +88,12 @@ func Require(perms ...Permission) gin.HandlerFunc {
     return func(c *gin.Context) {
         id := GetIdentity(c)
         if id == nil {
-            c.JSON(http.StatusUnauthorized, h.ErrorResponse{Data: nil, Err: &h.APIError{Code: "UNAUTHORIZED", Message: "missing identity"}})
+            c.JSON(http.StatusUnauthorized, gin.H{"data": nil, "error": gin.H{"code": "UNAUTHORIZED", "message": "missing identity"}})
             c.Abort(); return
         }
         for _, p := range perms {
             if !id.Has(p) {
-                c.JSON(http.StatusForbidden, h.ErrorResponse{Data: nil, Err: &h.APIError{Code: "FORBIDDEN", Message: string(p)}})
+                c.JSON(http.StatusForbidden, gin.H{"data": nil, "error": gin.H{"code": "FORBIDDEN", "message": string(p)}})
                 c.Abort(); return
             }
         }

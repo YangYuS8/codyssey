@@ -265,6 +265,81 @@ paths:
         '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '500': { description: 更新失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
 
+  /auth/register:
+    post:
+      summary: 用户注册
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRegisterRequest' }
+      responses:
+        '201': { description: 已注册, content: { application/json: { schema: { $ref: '#/components/schemas/AuthAuthResponse' } } } }
+        '400': { description: 参数或密码弱, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '409': { description: 用户名存在, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /auth/login:
+    post:
+      summary: 用户登录
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthLoginRequest' }
+      responses:
+        '200': { description: 成功, content: { application/json: { schema: { $ref: '#/components/schemas/AuthAuthResponse' } } } }
+        '401': { description: 凭据错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /auth/refresh:
+    post:
+      summary: 刷新令牌
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRefreshRequest' }
+      responses:
+        '200': { description: 新令牌, content: { application/json: { schema: { $ref: '#/components/schemas/AuthTokenPairEnvelope' } } } }
+        '401': { description: 失效或非法, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
+  /submissions:
+    post:
+      summary: 创建代码提交
+      description: 需要登录（任意非 guest 身份）。初始 status 为 pending。
+      operationId: createSubmission
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubmissionCreateRequest' }
+      responses:
+        '201': { description: 已创建, content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionEnvelope' } } } }
+        '400': { description: 参数错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 创建失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
+  /submissions/{id}:
+    get:
+      summary: 获取提交详情
+      description: Owner 及 teacher / system_admin 可看到 code 字段，其他角色 code 为空字符串。
+      operationId: getSubmission
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionEnvelope' } } } }
+        '400': { description: ID 错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '500': { description: 获取失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+
 components:
   securitySchemes:
     BearerAuth:
@@ -364,5 +439,76 @@ components:
       type: object
       properties:
         data: { $ref: '#/components/schemas/User' }
+        error: { nullable: true }
+      required: [data]
+    AuthRegisterRequest:
+      type: object
+      properties:
+        username: { type: string, minLength: 3 }
+        password: { type: string, minLength: 6 }
+        roles:
+          type: array
+          items: { type: string }
+      required: [username, password]
+    AuthLoginRequest:
+      type: object
+      properties:
+        username: { type: string }
+        password: { type: string }
+      required: [username, password]
+    AuthRefreshRequest:
+      type: object
+      properties:
+        refresh_token: { type: string }
+      required: [refresh_token]
+    AuthTokenPair:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, description: "access token 剩余秒数" }
+      required: [access_token, refresh_token, expires_in]
+    AuthAuthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            user: { $ref: '#/components/schemas/User' }
+            tokens: { $ref: '#/components/schemas/AuthTokenPair' }
+        error: { nullable: true }
+      required: [data]
+    AuthTokenPairEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            tokens: { $ref: '#/components/schemas/AuthTokenPair' }
+        error: { nullable: true }
+      required: [data]
+    Submission:
+      type: object
+      properties:
+        id: { type: string }
+        user_id: { type: string }
+        problem_id: { type: string }
+        language: { type: string }
+        code: { type: string, description: "若非 owner 且无 teacher/system_admin 角色，此字段为空字符串" }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, user_id, problem_id, language, status, created_at, updated_at]
+    SubmissionCreateRequest:
+      type: object
+      properties:
+        problem_id: { type: string }
+        language: { type: string }
+        code: { type: string }
+      required: [problem_id, language, code]
+    SubmissionEnvelope:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Submission' }
         error: { nullable: true }
       required: [data]

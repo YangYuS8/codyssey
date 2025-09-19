@@ -28,6 +28,9 @@ const (
     PermUserGet    Permission = "user.get"
     PermUserUpdateRoles Permission = "user.update_roles"
     PermUserDelete Permission = "user.delete"
+    // 提交相关权限（初版占位）
+    PermSubmissionCreate Permission = "submission.create"
+    PermSubmissionGet    Permission = "submission.get"
 )
 
 // 简单用户身份模型（后续替换为 JWT 解析结果）
@@ -52,11 +55,13 @@ func NewDebugIdentity(perms []Permission) *Identity {
 // 角色到权限的静态初版映射（后续可迁移 DB / 缓存）
 var rolePermissionMap = map[string][]Permission{
     RoleSystemAdmin: {PermProblemCreate, PermProblemUpdate, PermProblemDelete, PermProblemRead, PermProblemList, PermProblemGet,
-        PermUserCreate, PermUserRead, PermUserList, PermUserGet, PermUserUpdateRoles, PermUserDelete},
+        PermUserCreate, PermUserRead, PermUserList, PermUserGet, PermUserUpdateRoles, PermUserDelete,
+        PermSubmissionCreate, PermSubmissionGet},
     RoleTeacher:     {PermProblemCreate, PermProblemUpdate, PermProblemDelete, PermProblemRead, PermProblemList, PermProblemGet,
-        PermUserRead, PermUserList, PermUserGet},
-    RoleStudent:     {PermProblemRead, PermProblemList, PermProblemGet, PermUserGet},
-    RoleContestant:  {PermProblemRead, PermProblemList, PermProblemGet, PermUserGet},
+        PermUserRead, PermUserList, PermUserGet,
+        PermSubmissionCreate, PermSubmissionGet},
+    RoleStudent:     {PermProblemRead, PermProblemList, PermProblemGet, PermUserGet, PermSubmissionCreate, PermSubmissionGet},
+    RoleContestant:  {PermProblemRead, PermProblemList, PermProblemGet, PermUserGet, PermSubmissionCreate, PermSubmissionGet},
     RoleGuest:       {PermProblemRead, PermProblemList, PermProblemGet},
 }
 

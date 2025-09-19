@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/YangYuS8/codyssey/backend/internal/auth"
 	"github.com/YangYuS8/codyssey/backend/internal/config"
 	"github.com/YangYuS8/codyssey/backend/internal/db"
 	"github.com/YangYuS8/codyssey/backend/internal/http/router"
@@ -51,12 +52,17 @@ func (s *Server) Start(ctx context.Context) error {
 	// 3. 初始化仓库 & 路由
 	problemRepo := repository.NewPGProblemRepository(database.Pool)
 	userRepo := repository.NewPGUserRepository(database.Pool)
+	submissionRepo := repository.NewPGSubmissionRepository(database.Pool)
+	jwtMgr := auth.NewJWTManager(os.Getenv("JWT_SECRET"), 15*time.Minute, 7*24*time.Hour)
+	authService := auth.NewAuthService(userRepo, jwtMgr)
 	deps := router.Dependencies{
-		ProblemRepo: problemRepo,
-		UserRepo:    userRepo,
-		HealthCheck: healthProbe{s: s},
-		Version:     s.cfg.Version,
-		Env:         s.cfg.Env,
+		ProblemRepo:    problemRepo,
+		UserRepo:       userRepo,
+		AuthService:    authService,
+		SubmissionRepo: submissionRepo,
+		HealthCheck:    healthProbe{s: s},
+		Version:        s.cfg.Version,
+		Env:            s.cfg.Env,
 	}
 	r := router.Setup(deps)
 

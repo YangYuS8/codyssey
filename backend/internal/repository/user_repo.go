@@ -30,8 +30,8 @@ func NewPGUserRepository(pool *pgxpool.Pool) *PGUserRepository { return &PGUserR
 func (r *PGUserRepository) Create(ctx context.Context, u domain.User) error {
     if u.ID == "" { u.ID = uuid.New().String() }
     if u.CreatedAt.IsZero() { u.CreatedAt = time.Now().UTC() }
-    _, err := r.pool.Exec(ctx, `INSERT INTO users (id, username, roles, created_at) VALUES ($1,$2,$3,$4)`,
-        u.ID, u.Username, u.Roles, u.CreatedAt)
+    _, err := r.pool.Exec(ctx, `INSERT INTO users (id, username, roles, created_at, password_hash) VALUES ($1,$2,$3,$4,$5)`,
+        u.ID, u.Username, u.Roles, u.CreatedAt, u.PasswordHash)
     if err != nil {
         if strings.Contains(strings.ToLower(err.Error()), "unique") { return ErrUserDuplicate }
         return err
@@ -40,9 +40,9 @@ func (r *PGUserRepository) Create(ctx context.Context, u domain.User) error {
 }
 
 func (r *PGUserRepository) GetByID(ctx context.Context, id string) (domain.User, error) {
-    row := r.pool.QueryRow(ctx, `SELECT id, username, roles, created_at FROM users WHERE id=$1`, id)
+    row := r.pool.QueryRow(ctx, `SELECT id, username, roles, created_at, COALESCE(password_hash,'') FROM users WHERE id=$1`, id)
     var u domain.User
-    if err := row.Scan(&u.ID, &u.Username, &u.Roles, &u.CreatedAt); err != nil {
+    if err := row.Scan(&u.ID, &u.Username, &u.Roles, &u.CreatedAt, &u.PasswordHash); err != nil {
         if strings.Contains(err.Error(), "no rows") { return domain.User{}, ErrUserNotFound }
         return domain.User{}, err
     }
@@ -50,9 +50,9 @@ func (r *PGUserRepository) GetByID(ctx context.Context, id string) (domain.User,
 }
 
 func (r *PGUserRepository) GetByUsername(ctx context.Context, username string) (domain.User, error) {
-    row := r.pool.QueryRow(ctx, `SELECT id, username, roles, created_at FROM users WHERE username=$1`, username)
+    row := r.pool.QueryRow(ctx, `SELECT id, username, roles, created_at, COALESCE(password_hash,'') FROM users WHERE username=$1`, username)
     var u domain.User
-    if err := row.Scan(&u.ID, &u.Username, &u.Roles, &u.CreatedAt); err != nil {
+    if err := row.Scan(&u.ID, &u.Username, &u.Roles, &u.CreatedAt, &u.PasswordHash); err != nil {
         if strings.Contains(err.Error(), "no rows") { return domain.User{}, ErrUserNotFound }
         return domain.User{}, err
     }

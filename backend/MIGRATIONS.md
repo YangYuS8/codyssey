@@ -84,6 +84,9 @@ goose -dir ./migrations pgx "$DB_DSN" up 0002
 	- 设计原因：RBAC 权限系统需要在用户实体上直接存储多角色集合，便于后续鉴权一次加载。
 	- 未额外创建用户名索引：`username UNIQUE` 已隐式生成唯一索引。
 	- 如未来要抽离角色为独立实体，可新增 `roles` / `user_roles` 关系并迁移数据。
+ - 0004_add_password_hash_to_users.sql: 添加 `password_hash` 列（可为 NULL 兼容旧数据；新注册必须写入）。
+	 - 密码使用 bcrypt(DefaultCost) 存储；若后续需要更强策略（argon2id / pepper），新增迁移与逻辑即可。
+	 - Refresh/Access Token 均使用对称 HS256 JWT，后续可引入旋转/黑名单（存储 refresh jti）。
 
 ## 7. 约定
 
