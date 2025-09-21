@@ -20,7 +20,8 @@ var (
 type SubmissionRepository interface {
     Create(ctx context.Context, s domain.Submission) error
     GetByID(ctx context.Context, id string) (domain.Submission, error)
-    UpdateStatus(ctx context.Context, id string, status string) error
+    // UpdateStatus 基于版本号乐观锁；expectedVersion 为调用方读取到的当前 version。
+    UpdateStatus(ctx context.Context, id string, status string, expectedVersion int) error
     List(ctx context.Context, filter SubmissionFilter, limit, offset int) ([]domain.Submission, error)
     Count(ctx context.Context, filter SubmissionFilter) (int, error)
 }
@@ -59,11 +60,9 @@ func (r *PGSubmissionRepository) GetByID(ctx context.Context, id string) (domain
     return s, nil
 }
 
-func (r *PGSubmissionRepository) UpdateStatus(ctx context.Context, id string, status string) error {
-    // 读取当前状态以支持条件更新（简单两步；可优化为单条 SQL 返回旧值）
-    cur, err := r.GetByID(ctx, id)
-    if err != nil { return err }
-    cmd, err := r.pool.Exec(ctx, `UPDATE submissions SET status=$1, version=version+1, updated_at=NOW() WHERE id=$2 AND status=$3`, status, id, cur.Status)
+func (r *PGSubmissionRepository) UpdateStatus(ctx context.Context, id string, status string, expectedVersion int) error {
+    // 使用版本号乐观锁：只有当 version 匹配时才更新并自增
+    cmd, err := r.pool.Exec(ctx, `UPDATE submissions SET status=$1, version=version+1, updated_at=NOW() WHERE id=$2 AND version=$3`, status, id, expectedVersion)
     if err != nil { return err }
     if cmd.RowsAffected() == 0 { return ErrSubmissionConflict }
     return nil

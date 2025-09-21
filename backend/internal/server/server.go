@@ -57,6 +57,16 @@ func buildLogger(cfg config.Config) (*zap.Logger, error) {
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	// 启动模式摘要日志（在连接 DB 之前，便于早期排错）
+	debugIdentityEnabled := (s.cfg.Env == "development" || s.cfg.Env == "test")
+	s.logger.Info("server bootstrap",
+		zap.String("env", s.cfg.Env),
+		zap.String("version", s.cfg.Version),
+		zap.Bool("auto_migrate", s.cfg.AutoMigrate),
+		zap.Bool("debug_identity_enabled", debugIdentityEnabled),
+		zap.Int("max_submission_code_bytes", s.cfg.MaxSubmissionCodeBytes),
+		zap.Int("max_request_body_bytes", s.cfg.MaxRequestBodyBytes),
+	)
 	// 1. 连接数据库
 	database, err := db.Connect(ctx, s.cfg.DB.ConnString())
 	if err != nil { return err }

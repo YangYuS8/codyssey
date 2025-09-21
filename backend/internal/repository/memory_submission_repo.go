@@ -35,10 +35,11 @@ func (m *MemorySubmissionRepository) GetByID(ctx context.Context, id string) (do
     return domain.Submission{}, ErrSubmissionNotFound
 }
 
-func (m *MemorySubmissionRepository) UpdateStatus(ctx context.Context, id string, status string) error {
+func (m *MemorySubmissionRepository) UpdateStatus(ctx context.Context, id string, status string, expectedVersion int) error {
     m.mu.Lock(); defer m.mu.Unlock()
     for i, s := range m.list {
         if s.ID == id {
+            if s.Version != expectedVersion { return ErrSubmissionConflict }
             m.list[i].Status = status
             m.list[i].Version += 1 // 状态更新也递增版本
             m.list[i].UpdatedAt = time.Now().UTC()

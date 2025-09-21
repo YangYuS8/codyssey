@@ -18,6 +18,9 @@ var (
 
     submissionTransitions *prometheus.CounterVec
     judgeRunTransitions *prometheus.CounterVec
+    judgeRunDuration *prometheus.HistogramVec
+    submissionConflicts prometheus.Counter
+    judgeRunConflicts prometheus.Counter
 )
 
 // Init initializes the metrics registry and registers collectors. Safe to call once.
@@ -58,11 +61,32 @@ func Init() {
         Help:      "Count of judge run status transitions by from->to.",
     }, []string{"from", "to"})
 
+    judgeRunDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+        Namespace: "codyssey",
+        Name:      "judge_run_duration_seconds",
+        Help:      "Histogram of judge run (start->finish) durations in seconds.",
+        Buckets:   []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20},
+    }, []string{"status"})
+
+    submissionConflicts = prometheus.NewCounter(prometheus.CounterOpts{
+        Namespace: "codyssey",
+        Name:      "submission_conflicts_total",
+        Help:      "Total number of submission status update conflicts (optimistic lock).",
+    })
+    judgeRunConflicts = prometheus.NewCounter(prometheus.CounterOpts{
+        Namespace: "codyssey",
+        Name:      "judge_run_conflicts_total",
+        Help:      "Total number of judge run status update conflicts (optimistic lock).",
+    })
+
     _ = reg.Register(httpRequestsTotal)
     _ = reg.Register(httpRequestDuration)
     _ = reg.Register(httpInFlight)
     _ = reg.Register(submissionTransitions)
     _ = reg.Register(judgeRunTransitions)
+    _ = reg.Register(judgeRunDuration)
+    _ = reg.Register(submissionConflicts)
+    _ = reg.Register(judgeRunConflicts)
 }
 
 // Middleware instruments HTTP requests. Should be added high in the chain after recovery & trace.
@@ -104,6 +128,19 @@ func ObserveJudgeRunTransition(from, to string) {
     if judgeRunTransitions == nil { return }
     judgeRunTransitions.WithLabelValues(from, to).Inc()
 }
+
+// ObserveJudgeRunDuration 记录一次运行的总耗时（仅在 start & finish 时间都存在时）
+func ObserveJudgeRunDuration(status string, startedAt, finishedAt *time.Time) {
+    if judgeRunDuration == nil || startedAt == nil || finishedAt == nil { return }
+    if finishedAt.Before(*startedAt) { return }
+    judgeRunDuration.WithLabelValues(status).Observe(finishedAt.Sub(*startedAt).Seconds())
+}
+
+// IncSubmissionConflict increments submission conflict counter.
+func IncSubmissionConflict() { if submissionConflicts != nil { submissionConflicts.Inc() } }
+
+// IncJudgeRunConflict increments judge run conflict counter.
+func IncJudgeRunConflict() { if judgeRunConflicts != nil { judgeRunConflicts.Inc() } }
 
 // intToStr – small helper without importing strconv repeatedly.
 func intToStr(i int) string {

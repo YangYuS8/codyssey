@@ -5,6 +5,8 @@
 ## [Unreleased]
 ### Added
  - 错误码 `CONFLICT`：用于并发/条件更新 0 行场景（返回 HTTP 409）
+ - JudgeRun 冲突区分：`UpdateRunning` / `UpdateFinished` 区分不存在与状态冲突，冲突返回 409
+ - Histogram 指标：`codyssey_judge_run_duration_seconds`（按终态标签记录运行耗时）
 ### Changed
 - 
 ### Deprecated

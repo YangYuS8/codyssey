@@ -52,8 +52,8 @@ graph LR
 | status | ENUM | 判题执行状态 |
 | created_at | timestamptz | 创建时间 |
 | updated_at | timestamptz | 更新时间 |
-| started_at | timestamptz | 进入 running 时间（用于时长统计，后续暴露时长指标） |
-| finished_at | timestamptz | 结束时间 |
+| started_at | timestamptz | 进入 running 时间（用于耗时统计） |
+| finished_at | timestamptz | 结束时间（与 started_at 差值形成运行总耗时） |
 
 ### 2.3 状态机
 ```
@@ -64,6 +64,20 @@ graph LR
 - 终止后再次更新
 - 未知状态值 → `INVALID_STATUS`
 - 不符合链路顺序 → `INVALID_TRANSITION`
+
+并发与冲突语义：
+- `UpdateRunning` 与 `UpdateFinished` 使用条件更新 (`WHERE status = 'queued'` / `WHERE status = 'running'`) 实现乐观并发控制。
+- 若受影响行数为 0：
+  * 记录不存在 → `JUDGE_RUN_NOT_FOUND` (404)
+  * 记录存在但状态已改变（被其它并发操作抢先）→ `CONFLICT` (409)
+- 内存与 PG 实现均暴露 `ErrJudgeRunConflict` 以统一 handler 映射。
+
+运行时长指标：
+- 在 `Finish` 成功后，如果 `started_at` 与 `finished_at` 存在且顺序合法，记录 Prometheus Histogram: `codyssey_judge_run_duration_seconds{status="<terminal>"}`。
+- 用途：观察不同终态的执行时间分布；可用于识别超时、沙箱性能波动。示例：
+  ```promql
+  histogram_quantile(0.95, sum by (le) (rate(codyssey_judge_run_duration_seconds_bucket[5m])))
+  ```
 
 Mermaid 可视化：
 ```mermaid
@@ -97,7 +111,7 @@ graph LR
 | 方向 | 说明 |
 | ---- | ---- |
 | 分布式调度 | 引入队列优先级、抢占、限流维度（如题目/用户配额）。 |
-| 计时指标 | 通过 started_at/finished_at 增加 `judge_run_duration_seconds`。 |
+| 计时指标 | 已实现：`judge_run_duration_seconds`（Histogram，标签：status） |
 | 重判批次 | 增加 RejudgeBatch 实体，跟踪一次批量重判影响范围。 |
 | 结果细粒度 | 引入 `test_case_results`（每个测试点耗时/内存/错误原因）。 |
 | 失败分类 | 扩展 failed 细分类（编译错误/运行超时/内存超限/沙箱异常）。 |

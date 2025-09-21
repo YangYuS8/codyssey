@@ -14,6 +14,7 @@ import (
 var (
     ErrJudgeRunNotFound      = repository.ErrJudgeRunNotFound
     ErrJudgeRunInvalidStatus = errors.New("invalid judge run status transition")
+    ErrJudgeRunConflict      = repository.ErrJudgeRunConflict
 )
 
 // JudgeRunRepo 接口（与 repository.JudgeRunRepository 对齐方便测试替换）
@@ -39,7 +40,10 @@ func (s *JudgeRunService) Enqueue(ctx context.Context, submissionID string, judg
 
 // Start 将 queued 置为 running
 func (s *JudgeRunService) Start(ctx context.Context, id string) (domain.JudgeRun, error) {
-    if err := s.repo.UpdateRunning(ctx, id); err != nil { return domain.JudgeRun{}, err }
+    if err := s.repo.UpdateRunning(ctx, id); err != nil {
+        if errors.Is(err, repository.ErrJudgeRunConflict) { metrics.IncJudgeRunConflict() }
+        return domain.JudgeRun{}, err
+    }
     jr, err := s.repo.GetByID(ctx, id)
     if err == nil { metrics.ObserveJudgeRunTransition(domain.JudgeRunStatusQueued, domain.JudgeRunStatusRunning) }
     return jr, err
@@ -52,9 +56,15 @@ func (s *JudgeRunService) Finish(ctx context.Context, id string, status string, 
     default:
         return domain.JudgeRun{}, ErrJudgeRunInvalidStatus
     }
-    if err := s.repo.UpdateFinished(ctx, id, status, runtimeMS, memoryKB, exitCode, errMsg); err != nil { return domain.JudgeRun{}, err }
+    if err := s.repo.UpdateFinished(ctx, id, status, runtimeMS, memoryKB, exitCode, errMsg); err != nil {
+        if errors.Is(err, repository.ErrJudgeRunConflict) { metrics.IncJudgeRunConflict() }
+        return domain.JudgeRun{}, err
+    }
     jr, err := s.repo.GetByID(ctx, id)
-    if err == nil { metrics.ObserveJudgeRunTransition(domain.JudgeRunStatusRunning, status) }
+    if err == nil {
+        metrics.ObserveJudgeRunTransition(domain.JudgeRunStatusRunning, status)
+        metrics.ObserveJudgeRunDuration(status, jr.StartedAt, jr.FinishedAt)
+    }
     return jr, err
 }
 

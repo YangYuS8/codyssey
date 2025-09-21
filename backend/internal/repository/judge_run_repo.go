@@ -10,7 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrJudgeRunNotFound = errors.New("judge run not found")
+var (
+    ErrJudgeRunNotFound  = errors.New("judge run not found")
+    ErrJudgeRunConflict  = errors.New("judge run status conflict")
+)
 
 // JudgeRunRepository 定义判题执行记录的持久化接口
 // 状态转换：queued -> running -> (succeeded|failed|canceled)
@@ -68,10 +71,18 @@ func (r *PGJudgeRunRepository) ListBySubmission(ctx context.Context, submissionI
 }
 
 func (r *PGJudgeRunRepository) UpdateRunning(ctx context.Context, id string) error {
-    // 仅允许 queued -> running；利用 WHERE status='queued' 保证并发安全
+    // 仅允许 queued -> running；利用 WHERE status='queued' 保证并发安全。区分 not found 与 conflict：
+    // 如果记录存在但状态不是 queued，则视为冲突。
     cmd, err := r.pool.Exec(ctx, `UPDATE judge_runs SET status='running', started_at=NOW(), updated_at=NOW() WHERE id=$1 AND status='queued'`, id)
     if err != nil { return err }
-    if cmd.RowsAffected() == 0 { return ErrJudgeRunNotFound }
+    if cmd.RowsAffected() == 0 {
+        // 检查是否存在
+        jr, err2 := r.GetByID(ctx, id)
+        if err2 != nil { return ErrJudgeRunNotFound }
+        // 存在但状态不是 queued -> 冲突
+        if jr.Status != domain.JudgeRunStatusQueued { return ErrJudgeRunConflict }
+        return ErrJudgeRunNotFound
+    }
     return nil
 }
 
@@ -85,7 +96,12 @@ func (r *PGJudgeRunRepository) UpdateFinished(ctx context.Context, id string, st
     // 并发安全：WHERE status='running'
     cmd, err := r.pool.Exec(ctx, `UPDATE judge_runs SET status=$1, runtime_ms=$2, memory_kb=$3, exit_code=$4, error_message=$5, finished_at=NOW(), updated_at=NOW() WHERE id=$6 AND status='running'`, status, runtimeMS, memoryKB, exitCode, errMsg, id)
     if err != nil { return err }
-    if cmd.RowsAffected() == 0 { return ErrJudgeRunNotFound }
+    if cmd.RowsAffected() == 0 {
+        jr, err2 := r.GetByID(ctx, id)
+        if err2 != nil { return ErrJudgeRunNotFound }
+        if jr.Status != domain.JudgeRunStatusRunning { return ErrJudgeRunConflict }
+        return ErrJudgeRunNotFound
+    }
     return nil
 }
 
@@ -125,7 +141,8 @@ func (m *MemoryJudgeRunRepository) ListBySubmission(ctx context.Context, submiss
 
 func (m *MemoryJudgeRunRepository) UpdateRunning(ctx context.Context, id string) error {
     for i, jr := range m.list {
-        if jr.ID == id && jr.Status == domain.JudgeRunStatusQueued {
+        if jr.ID == id {
+            if jr.Status != domain.JudgeRunStatusQueued { return ErrJudgeRunConflict }
             now := time.Now().UTC(); m.list[i].Status = domain.JudgeRunStatusRunning; m.list[i].StartedAt = &now; m.list[i].UpdatedAt = now; return nil
         }
     }
@@ -139,7 +156,8 @@ func (m *MemoryJudgeRunRepository) UpdateFinished(ctx context.Context, id string
         return errors.New("invalid terminal status")
     }
     for i, jr := range m.list {
-        if jr.ID == id && jr.Status == domain.JudgeRunStatusRunning {
+        if jr.ID == id {
+            if jr.Status != domain.JudgeRunStatusRunning { return ErrJudgeRunConflict }
             now := time.Now().UTC()
             m.list[i].Status = status
             m.list[i].RuntimeMS = runtimeMS

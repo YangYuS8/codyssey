@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"os"
+	"strconv"
 
 	"github.com/YangYuS8/codyssey/backend/internal/auth"
 	"github.com/YangYuS8/codyssey/backend/internal/domain"
@@ -37,6 +38,13 @@ type Dependencies struct {
 func Setup(dep Dependencies) *gin.Engine {
     r := gin.New()
     r.Use(gin.Logger(), gin.Recovery(), middleware.TraceID(), metrics.Middleware())
+    // 全局请求体限制（若配置提供）
+    if dep.Env != "" { /* placeholder to emphasize env already captured */ }
+    // 这里无法直接访问 config.Config；采用依赖注入策略可在 future 版本增强。
+    // 临时：如果通过环境变量提供 MAX_REQUEST_BODY_BYTES，则解析后加中间件（避免修改 Dependencies 结构过大）。
+    if v := os.Getenv("MAX_REQUEST_BODY_BYTES"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil && n > 0 { r.Use(middleware.BodyLimit(n)) }
+    }
     // 依据 ENV 使用不同身份中间件（默认 development 下允许 debug 头）
     env := dep.Env
     if env == "" { env = os.Getenv("ENV") }

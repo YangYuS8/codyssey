@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,7 +52,7 @@ func isValidStatus(st string) bool {
 type SubmissionRepo interface {
     Create(ctx context.Context, s domain.Submission) error
     GetByID(ctx context.Context, id string) (domain.Submission, error)
-    UpdateStatus(ctx context.Context, id string, status string) error
+    UpdateStatus(ctx context.Context, id string, status string, expectedVersion int) error
     List(ctx context.Context, f repository.SubmissionFilter, limit, offset int) ([]domain.Submission, error)
     Count(ctx context.Context, f repository.SubmissionFilter) (int, error)
 }
@@ -70,6 +72,10 @@ func NewSubmissionService(repo SubmissionRepo, logRepo SubmissionStatusLogRepo) 
 func (s *SubmissionService) Create(ctx context.Context, userID, problemID, language, code string) (domain.Submission, error) {
     if strings.TrimSpace(code) == "" { return domain.Submission{}, ErrEmptyCode }
     if strings.TrimSpace(language) == "" { return domain.Submission{}, ErrLanguageRequired }
+    // 代码长度限制（优先使用环境变量 MAX_SUBMISSION_CODE_BYTES；否则默认 128KB）
+    maxBytes := 128 * 1024
+    if v := os.Getenv("MAX_SUBMISSION_CODE_BYTES"); v != "" { if n, err := strconv.Atoi(v); err == nil && n > 0 { maxBytes = n } }
+    if len(code) > maxBytes { return domain.Submission{}, errors.New("code too large") }
     sub := domain.Submission{ID: uuid.New().String(), UserID: userID, ProblemID: problemID, Language: language, Code: code, Status: SubmissionStatusPending, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(), Version: 1}
     if err := s.repo.Create(ctx, sub); err != nil { return domain.Submission{}, err }
     return sub, nil
@@ -88,7 +94,10 @@ func (s *SubmissionService) UpdateStatus(ctx context.Context, id string, newStat
     ok := false
     for _, a := range allowed { if a == newStatus { ok = true; break } }
     if !ok { return domain.Submission{}, ErrInvalidStatusTransition }
-    if err := s.repo.UpdateStatus(ctx, id, newStatus); err != nil { return domain.Submission{}, err }
+    if err := s.repo.UpdateStatus(ctx, id, newStatus, cur.Version); err != nil {
+        if errors.Is(err, ErrSubmissionConflict) { metrics.IncSubmissionConflict() }
+        return domain.Submission{}, err
+    }
     metrics.ObserveSubmissionTransition(fromStatus, newStatus)
     cur.Status = newStatus
     cur.Version += 1

@@ -14,6 +14,8 @@ type Config struct {
 	JWTSecret   string
 	AutoMigrate bool
 	LogLevel    string
+	MaxSubmissionCodeBytes int // 代码长度上限
+	MaxRequestBodyBytes    int // 全局请求体限制
 }
 
 type DBConfig struct {
@@ -44,7 +46,11 @@ func Load() Config {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" { jwtSecret = "dev-secret-change-me" }
 	autoMig := os.Getenv("AUTO_MIGRATE") == "true"
-	return Config{Port: port, Env: env, DB: db, JWTSecret: jwtSecret, AutoMigrate: autoMig, LogLevel: logLevel}
+	maxCode := 128 * 1024 // 128KB 默认
+	if v := os.Getenv("MAX_SUBMISSION_CODE_BYTES"); v != "" { if n, err := atoiSafe(v); err == nil && n > 0 { maxCode = n } }
+	maxBody := 512 * 1024 // 512KB 默认
+	if v := os.Getenv("MAX_REQUEST_BODY_BYTES"); v != "" { if n, err := atoiSafe(v); err == nil && n > 0 { maxBody = n } }
+	return Config{Port: port, Env: env, DB: db, JWTSecret: jwtSecret, AutoMigrate: autoMig, LogLevel: logLevel, MaxSubmissionCodeBytes: maxCode, MaxRequestBodyBytes: maxBody}
 }
 
 // Validate performs basic sanity checks; panic early if critical settings missing in non-dev.
@@ -62,4 +68,13 @@ func (d DBConfig) ConnString() string {
 func firstNonEmpty(values ...string) string {
 	for _, v := range values { if v != "" { return v } }
 	return ""
+}
+
+func atoiSafe(s string) (int, error) {
+	var n int
+	for _, ch := range s {
+		if ch < '0' || ch > '9' { return 0, fmt.Errorf("invalid int") }
+		n = n*10 + int(ch-'0')
+	}
+	return n, nil
 }

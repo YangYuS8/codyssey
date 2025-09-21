@@ -44,9 +44,10 @@ func (m *conflictMemorySubmissionRepo) GetByID(_ context.Context, id string) (do
     copy.Status = m.baseStatus
     return copy, nil
 }
-func (m *conflictMemorySubmissionRepo) UpdateStatus(_ context.Context, id string, status string) error {
+func (m *conflictMemorySubmissionRepo) UpdateStatus(_ context.Context, id string, status string, expectedVersion int) error {
     m.mu.Lock(); defer m.mu.Unlock()
     if m.sub.ID != id { return repository.ErrSubmissionNotFound }
+    if m.sub.Version != expectedVersion { return repository.ErrSubmissionConflict }
     if m.updated.Load() > 0 { return repository.ErrSubmissionConflict }
     // 第一次成功更新
     m.sub.Status = status

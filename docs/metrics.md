@@ -20,6 +20,7 @@
 | `codyssey_http_in_flight_requests` | Gauge | (无) | 当前正在处理的请求数 | 过载/阻塞识别 |
 | `codyssey_submission_status_transitions_total` | Counter | `from`, `to` | Submission 状态跳转计数 | 观察状态机健康、失败激增 |
 | `codyssey_judge_run_status_transitions_total` | Counter | `from`, `to` | JudgeRun 状态跳转计数 | 调度/执行阶段异常监测 |
+| `codyssey_judge_run_duration_seconds` | Histogram | `status` | JudgeRun 从 start->finish 总耗时 | 评测性能、长尾分析 |
 
 ### 2.1 直方图桶
 `codyssey_http_request_duration_seconds` 直方图桶：
@@ -79,7 +80,7 @@ scrape_configs:
 ## 7. 扩展点（未来可添加）
 | 类别 | 指标建议 | 备注 |
 | ---- | -------- | ---- |
-| JudgeRun 耗时 | `judge_run_duration_seconds` (Histogram) | start -> finish 真实执行时长 |
+| JudgeRun 冲突计数 | `judge_run_conflict_total` | 统计并发冲突（当前可用 transitions+HTTP 409 推导，后续可单独暴露） |
 | Submission 首字节延迟 | `submission_enqueue_latency_seconds` | 提交 -> 第一次调度 |
 | DB 交互 | `db_query_duration_seconds`、`db_connections_in_use` | 包装 `pgx` 统计 |
 | 外部依赖 | `sandbox_exec_duration_seconds` | Judge0 / sandbox 耗时 |

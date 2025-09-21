@@ -149,6 +149,10 @@ func InternalStartJudgeRun(judgeSvc *service.JudgeRunHTTPAdapter) gin.HandlerFun
                 respondError(c, http.StatusNotFound, errcode.CodeJudgeRunNotFound, errcode.Text(errcode.CodeJudgeRunNotFound))
                 return
             }
+            if err == repository.ErrJudgeRunConflict {
+                respondError(c, http.StatusConflict, errcode.CodeConflict, errcode.Text(errcode.CodeConflict))
+                return
+            }
             respondError(c, http.StatusBadRequest, errcode.CodeInvalidTransition, err.Error())
             return
         }
@@ -184,6 +188,10 @@ func InternalFinishJudgeRun(judgeSvc *service.JudgeRunHTTPAdapter) gin.HandlerFu
             }
             if err == repository.ErrJudgeRunNotFound {
                 respondError(c, http.StatusNotFound, errcode.CodeJudgeRunNotFound, errcode.Text(errcode.CodeJudgeRunNotFound))
+                return
+            }
+            if err == repository.ErrJudgeRunConflict {
+                respondError(c, http.StatusConflict, errcode.CodeConflict, errcode.Text(errcode.CodeConflict))
                 return
             }
             respondError(c, http.StatusBadRequest, errcode.CodeInvalidTransition, err.Error())

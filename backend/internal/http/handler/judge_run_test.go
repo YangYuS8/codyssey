@@ -24,7 +24,15 @@ type memorySubmissionRepo struct { items map[string]domain.Submission }
 func newMemorySubmissionRepo() *memorySubmissionRepo { return &memorySubmissionRepo{items: map[string]domain.Submission{}} }
 func (m *memorySubmissionRepo) Create(ctx context.Context, s domain.Submission) error { m.items[s.ID] = s; return nil }
 func (m *memorySubmissionRepo) GetByID(ctx context.Context, id string) (domain.Submission, error) { v, ok := m.items[id]; if !ok { return domain.Submission{}, service.ErrSubmissionNotFound }; return v, nil }
-func (m *memorySubmissionRepo) UpdateStatus(ctx context.Context, id string, status string) error { v, ok := m.items[id]; if !ok { return service.ErrSubmissionNotFound }; v.Status = status; v.UpdatedAt = time.Now().UTC(); m.items[id] = v; return nil }
+func (m *memorySubmissionRepo) UpdateStatus(ctx context.Context, id string, status string, expectedVersion int) error {
+    v, ok := m.items[id]; if !ok { return service.ErrSubmissionNotFound }
+    if v.Version != expectedVersion { return service.ErrSubmissionConflict }
+    v.Status = status
+    v.Version += 1
+    v.UpdatedAt = time.Now().UTC()
+    m.items[id] = v
+    return nil
+}
 func (m *memorySubmissionRepo) List(ctx context.Context, f repository.SubmissionFilter, limit, offset int) ([]domain.Submission, error) {
     res := make([]domain.Submission,0)
     for _, v := range m.items {
