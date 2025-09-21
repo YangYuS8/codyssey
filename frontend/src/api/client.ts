@@ -68,7 +68,11 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   }
   const code = json?.error?.code || 'UNKNOWN';
   const message = json?.error?.message || `HTTP ${res.status}`;
-  throw buildError(code, res.status, message);
+  const err = buildError(code, res.status, message);
+  if (err.unauthorized && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  }
+  throw err;
 }
 
 // 常用 GET 简化

@@ -1,9 +1,13 @@
+"use client";
 import React, {useState} from 'react';
 import {useParams, useRouter} from 'next/navigation';
 import {useProblem} from '../../../../src/hooks/useProblem';
 import {useCreateSubmission} from '../../../../src/hooks/useCreateSubmission';
 import {Button} from '../../../../src/components/ui/button';
+import {CodeEditor} from '../../../../src/components/code/CodeEditor';
 import {ApiError} from '../../../../src/api/client';
+import {useToast} from '../../../../src/components/ui/toast';
+import {toUserMessage} from '../../../../src/lib/error';
 
 const MAX_CODE_LENGTH = 100_000; // 与后端限制保持一致（若需同步可提取配置）
 
@@ -12,6 +16,7 @@ export default function SubmitPage() {
   const router = useRouter();
   const {data: problem} = useProblem(params?.id);
   const {mutate, isPending, error} = useCreateSubmission();
+  const {push: pushToast} = useToast();
 
   const [language, setLanguage] = useState('cpp');
   const [code, setCode] = useState('');
@@ -28,13 +33,18 @@ export default function SubmitPage() {
     setTooLong(false);
     setConflictMsg(null);
     mutate({problemId: params.id, language, code}, {
-      onSuccess: (s) => {
+      onSuccess: () => {
+        pushToast({ variant: 'success', title: '提交成功', description: '已创建提交，稍后可查看判题状态' });
         router.push('/submissions');
       },
       onError: (err: ApiError) => {
         if (err.conflict) {
           setConflictMsg('提交冲突，请刷新或稍后重试。');
+          pushToast({ variant: 'warning', title: '提交冲突', description: '请刷新页面后重试' });
+          return;
         }
+        const msg = toUserMessage(err);
+        pushToast({ variant: 'error', title: msg.title, description: msg.description });
       }
     });
   }
@@ -64,16 +74,16 @@ export default function SubmitPage() {
             <span>代码</span>
             <span className={`text-xs ${code.length > MAX_CODE_LENGTH * 0.9 ? 'text-orange-600' : 'text-gray-400'}`}>{code.length}/{MAX_CODE_LENGTH}</span>
           </label>
-          <textarea
-            className="w-full h-80 font-mono text-sm border rounded p-2 resize-y leading-snug"
+          <CodeEditor
+            language={language}
             value={code}
-            onChange={e => setCode(e.target.value)}
-            placeholder="在此粘贴或输入代码..."
+            onChange={v => setCode(v)}
+            height={400}
           />
           {tooLong && <p className="text-xs text-red-600">代码长度超过允许的最大值 {MAX_CODE_LENGTH} 字符。</p>}
         </div>
         {error && !error.conflict && !tooLong && (
-          <div className="text-sm text-red-600">提交失败: {error.message}</div>
+          <div className="text-sm text-red-600">提交失败: {toUserMessage(error).title}</div>
         )}
         {conflictMsg && (
           <div className="text-sm text-amber-600 border border-amber-300 bg-amber-50 px-3 py-2 rounded">{conflictMsg}</div>

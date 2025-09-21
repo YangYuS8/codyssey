@@ -1,5 +1,6 @@
 "use client";
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiPost } from '@/src/api/client';
 
 interface User {
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   // TODO: 可在此加入刷新 token 或 /me 请求
   useEffect(() => {
@@ -28,6 +30,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (cached) {
       try { setUser(JSON.parse(cached)); } catch { /* ignore */ }
     }
+    const handler = () => {
+      logout();
+      router.replace('/login');
+    };
+    window.addEventListener('auth:unauthorized', handler as EventListener);
+    return () => window.removeEventListener('auth:unauthorized', handler as EventListener);
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
