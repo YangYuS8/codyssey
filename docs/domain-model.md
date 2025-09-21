@@ -16,6 +16,7 @@
 | status | ENUM | 当前聚合状态（由评测结果驱动） |
 | created_at | timestamptz | 创建时间 |
 | updated_at | timestamptz | 更新时间 |
+| version | INT | 乐观锁版本号（每次状态或关键字段更新自增） |
 
 ### 1.3 状态机
 ```
@@ -66,11 +67,11 @@ graph LR
 - 不符合链路顺序 → `INVALID_TRANSITION`
 
 并发与冲突语义：
-- `UpdateRunning` 与 `UpdateFinished` 使用条件更新 (`WHERE status = 'queued'` / `WHERE status = 'running'`) 实现乐观并发控制。
-- 若受影响行数为 0：
+* Submission：使用 `version` 字段进行乐观锁（`UPDATE ... WHERE id=? AND version=?`）。成功后版本号自增；版本不匹配返回 `CONFLICT`。
+* JudgeRun：使用状态条件更新 (`WHERE status='queued'` / `WHERE status='running'`) 作为轻量乐观控制。受影响行数为 0 时：
   * 记录不存在 → `JUDGE_RUN_NOT_FOUND` (404)
-  * 记录存在但状态已改变（被其它并发操作抢先）→ `CONFLICT` (409)
-- 内存与 PG 实现均暴露 `ErrJudgeRunConflict` 以统一 handler 映射。
+  * 记录存在但状态已被其它并发操作修改 → `CONFLICT` (409)
+* 内存与 PG 实现均暴露对应 `ErrSubmissionConflict` / `ErrJudgeRunConflict`。
 
 运行时长指标：
 - 在 `Finish` 成功后，如果 `started_at` 与 `finished_at` 存在且顺序合法，记录 Prometheus Histogram: `codyssey_judge_run_duration_seconds{status="<terminal>"}`。
@@ -103,9 +104,14 @@ graph LR
 | 竞争更新失败 | CONFLICT | 409 | 乐观锁 / 条件更新 0 行（例如并发状态更新或已被其它事务修改） |
 
 ## 4. 并发与一致性
-- 采用条件更新（`WHERE id=? AND status=?`）方式保障状态单调性。
-- 当受影响行数为 0 且记录存在（被并发修改）：返回 `CONFLICT` (409)。
-- 调用方可捕获 `CONFLICT` 选择：重新读取最新状态 → 重新判定是否继续更新 / 放弃。
+Submission：版本号乐观锁防止“最后写入 wins”覆盖：
+1. 读取返回当前 `version`。
+2. 更新时携带期望版本；若行锁定失败（0 行受影响）说明版本已变 → `CONFLICT`。
+3. 客户端策略：重新获取最新状态决定是否重试。
+
+JudgeRun：依赖状态机单调（`queued->running->terminal`）的条件更新，避免并行重复启动或结束。
+
+冲突可观测性：`submission_conflicts_total` / `judge_run_conflicts_total` 指标用于监测热点资源竞争，可辅助决定是否需要退避或分片。
 
 ## 5. 未来扩展点
 | 方向 | 说明 |

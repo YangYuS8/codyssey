@@ -318,6 +318,7 @@ paths:
       responses:
         '201': { description: 已创建, content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionEnvelope' } } } }
         '400': { description: 参数错误, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '413': { description: 请求体或代码过大, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '500': { description: 创建失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
     get:
@@ -387,6 +388,7 @@ paths:
         '401': { description: 未登录, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '403': { description: 无权限, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '404': { description: 未找到, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '409': { description: 版本冲突（乐观锁失败）, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
         '500': { description: 更新失败, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
   /submissions/{id}/logs:
     get:
@@ -580,6 +582,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: 并发冲突（状态已被其它请求更新）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /internal/judge-runs/{id}/finish:
     post:
       summary: 内部结束判题运行 (running -> terminal)
@@ -641,6 +649,12 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '404':
           description: 运行记录不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: 并发冲突（状态已被其它请求更新）
           content:
             application/json:
               schema:

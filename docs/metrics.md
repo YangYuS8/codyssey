@@ -21,6 +21,8 @@
 | `codyssey_submission_status_transitions_total` | Counter | `from`, `to` | Submission 状态跳转计数 | 观察状态机健康、失败激增 |
 | `codyssey_judge_run_status_transitions_total` | Counter | `from`, `to` | JudgeRun 状态跳转计数 | 调度/执行阶段异常监测 |
 | `codyssey_judge_run_duration_seconds` | Histogram | `status` | JudgeRun 从 start->finish 总耗时 | 评测性能、长尾分析 |
+| `submission_conflicts_total` | Counter | (无) | Submission 状态/版本更新时发生乐观锁冲突次数 | 并发写入热点、重试放大识别 |
+| `judge_run_conflicts_total` | Counter | (无) | JudgeRun 状态更新（queued→running / running→终态）冲突次数 | 竞争队列/执行阶段冲突诊断 |
 
 ### 2.1 直方图桶
 `codyssey_http_request_duration_seconds` 直方图桶：
@@ -80,14 +82,13 @@ scrape_configs:
 ## 7. 扩展点（未来可添加）
 | 类别 | 指标建议 | 备注 |
 | ---- | -------- | ---- |
-| JudgeRun 冲突计数 | `judge_run_conflict_total` | 统计并发冲突（当前可用 transitions+HTTP 409 推导，后续可单独暴露） |
 | Submission 首字节延迟 | `submission_enqueue_latency_seconds` | 提交 -> 第一次调度 |
 | DB 交互 | `db_query_duration_seconds`、`db_connections_in_use` | 包装 `pgx` 统计 |
 | 外部依赖 | `sandbox_exec_duration_seconds` | Judge0 / sandbox 耗时 |
-| 竞争失败 | `submission_conflict_total` / `judge_run_conflict_total` | 乐观锁冲突计数（支持 409） |
+| 请求体大小级分布 | （可能）`request_body_bytes` Histogram | 若需要分析被拒绝前的典型请求体规模 |
 
 ## 8. 性能与开销
-当前指标全部为 Counter/Gauge/单一直方图，标签基数有限：
+当前指标全部为 Counter/Gauge/直方图（HTTP & JudgeRun），标签基数有限：
 - `route` 基数 ≈ 主要 API 数量（受限于使用 `c.FullPath()`，未包含查询参数）
 - 状态标签仅状态机有限集合
 - 风险较低，可安全在早期环境启用
@@ -104,4 +105,8 @@ scrape_configs:
 未来新增指标：向后兼容（新增不删）。重命名/删除需在发布说明中显式标记 BREAKING，并提供迁移指引。
 
 ---
-最后更新：自动生成日期占位（请在需要时手动维护）
+附加说明：
+1. 请求体/代码大小限制（`MAX_REQUEST_BODY_BYTES`、`MAX_SUBMISSION_CODE_BYTES`）当前仅通过 HTTP 413（`PAYLOAD_TOO_LARGE`）与业务层 400/409 错误可观测，尚未单独暴露指标；若后续需要分布分析可新增 Histogram。
+2. 冲突计数器已实现（早期文档列为扩展项），用于直观识别是否需要扩展重试/指数退避或分片策略。
+
+最后更新：2025-09-21

@@ -21,6 +21,9 @@
 | LIST_FAILED | 500 | 列表查询失败 | 底层存储错误 |
 | INVALID_STATUS | 400 | 提交或运行的目标状态非法 | 值不在允许集合内 |
 | INVALID_TRANSITION | 400 | 状态流转不被允许 | 违反状态机规则 |
+| CONFLICT | 409 | 并发写入冲突（乐观锁失败） | Submission 版本号不匹配；JudgeRun 条件更新被抢占 |
+| PAYLOAD_TOO_LARGE | 413 | 请求体超过全局限制 | 由全局 BodyLimit 中间件返回 |
+| CODE_TOO_LONG | 400 | 代码字段超过配置上限 | Create Submission 时校验 `MAX_SUBMISSION_CODE_BYTES` |
 
 ## 使用指引
 
@@ -30,7 +33,7 @@
 
 ## 状态机相关
 
-Submission 状态流转：`pending -> judging -> (accepted|wrong_answer|error)`；其余流转返回 `INVALID_TRANSITION`。
+Submission 状态流转：`pending -> judging -> (accepted|wrong_answer|error)`；其余流转返回 `INVALID_TRANSITION`。状态更新使用“版本号乐观锁”防止并发覆盖：请求必须携带当前版本（服务内部读取后 Compare & Update），冲突返回 `CONFLICT`。
 
 JudgeRun 状态流转：
 - `queued -> running -> (succeeded|failed|canceled)`
@@ -44,8 +47,27 @@ JudgeRun 状态流转：
 2. 若为领域专用（如 JUDGE_RUN_*），优先使用前缀分类。
 3. 在此文档补充表格，说明典型 HTTP 状态与语义。
 4. 更新 OpenAPI 文档的响应描述（若影响外部接口）。
+5. 涉及并发控制（版本字段、条件更新）需在 `domain-model.md` 与本表中同步说明。
 
 ## 示例
+并发冲突示例：
+```
+HTTP/1.1 409 Conflict
+{
+  "data": null,
+  "error": { "code": "CONFLICT", "message": "conflict" }
+}
+```
+
+请求体超限：
+```
+HTTP/1.1 413 Payload Too Large
+{
+  "data": null,
+  "error": { "code": "PAYLOAD_TOO_LARGE", "message": "request body too large" }
+}
+```
+
 
 ```
 HTTP/1.1 400 Bad Request

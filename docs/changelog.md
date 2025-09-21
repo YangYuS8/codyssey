@@ -7,8 +7,16 @@
  - 错误码 `CONFLICT`：用于并发/条件更新 0 行场景（返回 HTTP 409）
  - JudgeRun 冲突区分：`UpdateRunning` / `UpdateFinished` 区分不存在与状态冲突，冲突返回 409
  - Histogram 指标：`codyssey_judge_run_duration_seconds`（按终态标签记录运行耗时）
+ - Submission 使用 `version` 字段（乐观锁）替换基于 status 的条件更新，防止误报冲突
+ - Prometheus 冲突计数器：`submission_conflicts_total`、`judge_run_conflicts_total`
+ - 全局请求体大小限制中间件（`MAX_REQUEST_BODY_BYTES`，超限返回 413 `PAYLOAD_TOO_LARGE`）
+ - Submission 代码长度限制（`MAX_SUBMISSION_CODE_BYTES`，超限返回 400 `CODE_TOO_LONG`）
+ - 启动 Bootstrap 日志：输出 env、版本、最大请求体与代码限制参数
+ - OpenAPI：为 Submission 状态更新与内部 JudgeRun start/finish 增补 409 响应；为创建 Submission 增补 413 响应
+ - 文档：更新 `metrics.md`（冲突计数器）、`api_errors.md`（409/413/代码超限）、`domain-model.md`（version 乐观锁）
 ### Changed
-- 
+ - 迁移 Submission 并发控制：由 `WHERE status=?` 条件更新切换为 `WHERE id=? AND version=?` 乐观锁语义
+ - metrics 扩展章节移除已上线的冲突计数器占位
 ### Deprecated
 - 
 ### Removed
