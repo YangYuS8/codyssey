@@ -87,6 +87,22 @@ push({ variant: 'success' | 'error' | 'warning', title: '标题', description?: 
 ## Monaco 编辑器
 组件：`src/components/code/CodeEditor.tsx` 动态导入 `@monaco-editor/react`，自动处理 SSR。语言映射：cpp/python/go/java；未知语言降级为 plaintext。
 
+## 代码模板
+文件：`src/lib/codeTemplates.ts`
+
+支持语言：`cpp | python | go | java`
+
+在提交页面：
+- 自动记忆上一次选择的语言（localStorage: `submit_language`）。
+- 语言切换后若当前代码为空，会显示“填充模板”提示；点击按钮插入默认模板。
+
+扩展步骤：
+1. 在 `codeTemplates.ts` 添加新语言常量与映射。
+2. 更新联合类型 `SupportedLanguage` 与数组校验。
+3. 在提交页 `<select>` 补充选项，并在 `CodeEditor` 的 `mapLanguage` 增加映射。
+4. 若需要高亮需确认 Monaco 内置支持或引入额外语言定义。
+
+
 ## E2E 测试
 基础目录：`tests/e2e`，使用 Playwright。
 

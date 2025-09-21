@@ -1,5 +1,5 @@
 "use client";
-import React, {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {useParams, useRouter} from 'next/navigation';
 import {useProblem} from '../../../../src/hooks/useProblem';
 import {useCreateSubmission} from '../../../../src/hooks/useCreateSubmission';
@@ -8,6 +8,7 @@ import {CodeEditor} from '../../../../src/components/code/CodeEditor';
 import {ApiError} from '../../../../src/api/client';
 import {useToast} from '../../../../src/components/ui/toast';
 import {toUserMessage} from '../../../../src/lib/error';
+import {getTemplate, isSupportedLanguage, SupportedLanguage} from '../../../../src/lib/codeTemplates';
 
 const MAX_CODE_LENGTH = 100_000; // 与后端限制保持一致（若需同步可提取配置）
 
@@ -18,10 +19,32 @@ export default function SubmitPage() {
   const {mutate, isPending, error} = useCreateSubmission();
   const {push: pushToast} = useToast();
 
-  const [language, setLanguage] = useState('cpp');
+  const [language, setLanguage] = useState<SupportedLanguage>('cpp');
   const [code, setCode] = useState('');
   const [tooLong, setTooLong] = useState(false);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
+  const langChangedRef = useRef(false);
+
+  // 初始化：从 localStorage 读取上次使用语言
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('submit_language') : null;
+    if (stored && isSupportedLanguage(stored)) {
+      setLanguage(stored);
+    }
+  }, []);
+
+  // 语言变更时持久化
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('submit_language', language);
+    }
+  }, [language]);
+
+  function applyTemplate() {
+    const tpl = getTemplate(language);
+    setCode(tpl);
+    pushToast({ variant: 'success', title: '已填充模板', description: language.toUpperCase() + ' 模板已插入' });
+  }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,13 +84,25 @@ export default function SubmitPage() {
           <select
             className="border rounded px-2 py-1 text-sm bg-white"
             value={language}
-            onChange={e => setLanguage(e.target.value)}
+            onChange={e => {
+              const next = e.target.value;
+              if (isSupportedLanguage(next)) {
+                setLanguage(next);
+                langChangedRef.current = true;
+              }
+            }}
           >
             <option value="cpp">C++</option>
             <option value="python">Python</option>
             <option value="go">Go</option>
             <option value="java">Java</option>
           </select>
+          <div className="pt-2 flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={applyTemplate}>填充模板</Button>
+            {langChangedRef.current && code.trim().length === 0 && (
+              <span className="text-xs text-neutral-500 self-center">语言已切换，可点击“填充模板”快速插入</span>
+            )}
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-sm font-medium flex items-center justify-between">
