@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/src/app/providers";
+import { WebVitalMetric } from '@/src/types/api';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 // Web Vitals 上报：Next.js 会在客户端调用此导出函数
-export function reportWebVitals(metric: any) {
+export function reportWebVitals(metric: WebVitalMetric) {
   try {
     if (process.env.NEXT_PUBLIC_LOG_WEB_VITALS === 'true') {
       // 简单输出到控制台（可扩展 POST 到后端 /metrics 或 /vitals）
@@ -31,7 +32,7 @@ export function reportWebVitals(metric: any) {
     //   const body = JSON.stringify(metric);
     //   navigator.sendBeacon('/api/vitals', body);
     // }
-  } catch (e) {
+  } catch {
     // 静默失败
   }
 }

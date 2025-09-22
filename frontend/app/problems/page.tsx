@@ -18,7 +18,6 @@ export default function ProblemsPage() {
   const { data, isLoading, error } = useProblems({ page, pageSize, search, difficulty });
   useRequireAuth();
   const total = data?.meta.filtered || 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   // 同步到 URL（防抖可选，这里简单即时同步）
   useEffect(() => {
     const params = new URLSearchParams();
@@ -76,7 +75,7 @@ export default function ProblemsPage() {
           </div>
         )}
         {error && (
-          <div className="text-sm text-red-600">加载失败：{(error as any)?.message || '未知错误'}</div>
+          <div className="text-sm text-red-600">加载失败：{error.message}</div>
         )}
         {!isLoading && !error && (
           <table className="w-full text-sm">

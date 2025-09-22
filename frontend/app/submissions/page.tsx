@@ -19,7 +19,6 @@ export default function SubmissionsPage() {
   const [problemId, setProblemId] = useState(() => sp.get('problemId') || '');
   const {data, isLoading, error} = useSubmissions({ page, pageSize, status: status || undefined, language: language || undefined, problemId: problemId || undefined });
   const total = data?.meta.filtered || 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   useRequireAuth();
 
   useEffect(() => {

@@ -7,8 +7,9 @@ import { Toaster } from '@/src/components/ui/toaster';
 const qc = new QueryClient({
   defaultOptions: {
     queries: {
-      retry(failureCount, error: any) {
-        if (error?.httpStatus && error.httpStatus < 500) return false;
+      retry(failureCount, error: unknown) {
+        const httpStatus = (error as { httpStatus?: number })?.httpStatus;
+        if (httpStatus && httpStatus < 500) return false;
         return failureCount < 2;
       },
       refetchOnWindowFocus: false,

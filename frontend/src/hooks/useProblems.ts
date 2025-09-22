@@ -37,11 +37,10 @@ export function useProblems(params: UseProblemsParams = {}) {
           search: search || '',
           ...(difficulty ? { difficulty } : {})
         });
-        const resp = await apiGet<any>(`/problems?${query.toString()}`);
-        // 期望服务端返回 { data: [...], meta: {...} }
+        const resp = await apiGet<{ data: unknown[]; meta?: { page:number; pageSize:number; total:number; filtered:number } }>(`/problems?${query.toString()}`);
         const items = Array.isArray(resp.data) ? resp.data : [];
-  const data: Problem[] = items.map((p: any) => {
-          const v = safeParseOrThrow(ProblemSchema, p) as any;
+        const data: Problem[] = items.map((p: unknown) => {
+          const v = safeParseOrThrow(ProblemSchema, p);
           return {
             id: v.id,
             title: v.title,
@@ -56,16 +55,16 @@ export function useProblems(params: UseProblemsParams = {}) {
       }
 
       // 前端回退逻辑：获取全部再过滤分页
-      const all = await apiGet<any[]>(`/problems`);
+      const all = await apiGet<unknown[]>(`/problems`);
       const normalized: Problem[] = all.map(p => {
-        const v = safeParseOrThrow(ProblemSchema, p) as any;
+        const v = safeParseOrThrow(ProblemSchema, p);
         return {
           id: v.id,
-            title: v.title,
-            description: v.description,
-            difficulty: v.difficulty,
-            tags: v.tags,
-            createdAt: v.createdAt,
+          title: v.title,
+          description: v.description,
+          difficulty: v.difficulty,
+          tags: v.tags,
+          createdAt: v.createdAt,
         } as Problem;
       });
       let filtered = normalized;

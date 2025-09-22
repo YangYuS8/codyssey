@@ -10,9 +10,9 @@ export interface ApiError extends Error {
   notFound?: boolean;
 }
 
-interface RequestOptions {
+interface RequestOptions<B = unknown> {
   method?: string;
-  body?: any;
+  body?: B;
   auth?: boolean; // 默认 true
   headers?: Record<string, string>;
   signal?: AbortSignal;
@@ -32,7 +32,7 @@ function buildError(code: string, status: number, message: string): ApiError {
   return e;
 }
 
-export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+export async function apiFetch<T, B = unknown>(path: string, opts: RequestOptions<B> = {}): Promise<T> {
   const { method = 'GET', body, auth = true, headers = {}, signal } = opts;
   const finalHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -56,18 +56,18 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   });
 
   const contentType = res.headers.get('content-type');
-  let json: any = null;
+  let json: unknown = null;
   if (contentType && contentType.includes('application/json')) {
     json = await res.json().catch(() => null);
   } else if (!res.ok) {
     throw buildError('UNKNOWN', res.status, `HTTP ${res.status}`);
   }
-
+  const envelope = json as { data?: T; error?: { code?: string; message?: string } } | null;
   if (res.ok) {
-    return json?.data as T;
+    return (envelope && envelope.data !== undefined ? envelope.data : (json as T)) as T;
   }
-  const code = json?.error?.code || 'UNKNOWN';
-  const message = json?.error?.message || `HTTP ${res.status}`;
+  const code = envelope?.error?.code || 'UNKNOWN';
+  const message = envelope?.error?.message || `HTTP ${res.status}`;
   const err = buildError(code, res.status, message);
   if (err.unauthorized && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('auth:unauthorized'));
@@ -76,14 +76,14 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
 }
 
 // 常用 GET 简化
-export function apiGet<T>(path: string, opts: Omit<RequestOptions, 'method' | 'body'> = {}) {
+export function apiGet<T>(path: string, opts: Omit<RequestOptions<never>, 'method' | 'body'> = {}) {
   return apiFetch<T>(path, { ...opts, method: 'GET' });
 }
 
-export function apiPost<T>(path: string, body?: any, opts: Omit<RequestOptions, 'method' | 'body'> = {}) {
-  return apiFetch<T>(path, { ...opts, method: 'POST', body });
+export function apiPost<T, B = unknown>(path: string, body?: B, opts: Omit<RequestOptions<B>, 'method' | 'body'> = {}) {
+  return apiFetch<T, B>(path, { ...opts, method: 'POST', body });
 }
 
-export function apiPatch<T>(path: string, body?: any, opts: Omit<RequestOptions, 'method' | 'body'> = {}) {
-  return apiFetch<T>(path, { ...opts, method: 'PATCH', body });
+export function apiPatch<T, B = unknown>(path: string, body?: B, opts: Omit<RequestOptions<B>, 'method' | 'body'> = {}) {
+  return apiFetch<T, B>(path, { ...opts, method: 'PATCH', body });
 }

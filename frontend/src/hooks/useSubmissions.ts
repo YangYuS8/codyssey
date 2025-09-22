@@ -18,25 +18,29 @@ interface SubmissionsListResponse {
 }
 
 async function fetchSubmissions(params: UseSubmissionsParams): Promise<SubmissionsListResponse> {
-  // 暂时全量获取再前端过滤
-  const qs = new URLSearchParams();
-  if (params.problemId) qs.set('problemId', params.problemId);
-  const query = qs.toString();
-  const raw = await apiGet(`/submissions${query ? `?${query}` : ''}`);
-  if (!Array.isArray(raw)) throw new Error('SCHEMA_VALIDATION_FAILED_LIST_TYPE');
-  let list = raw.map((r: unknown) => safeParseOrThrow(SubmissionItemSchema, r) as SubmissionItem);
+  const serverPagination = process.env.NEXT_PUBLIC_SERVER_PAGINATION === 'true';
+  const { page = 1, pageSize = 20, problemId, status, language } = params;
+  if (serverPagination) {
+    const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (problemId) q.set('problemId', problemId);
+    if (status) q.set('status', status);
+    if (language) q.set('language', language);
+    const resp = await apiGet<{ data: unknown[]; meta?: { page:number; pageSize:number; total:number; filtered:number } }>(`/submissions?${q.toString()}`);
+    const items = Array.isArray(resp.data) ? resp.data : [];
+  const data: SubmissionItem[] = items.map(r => safeParseOrThrow(SubmissionItemSchema, r) as SubmissionItem);
+    const meta = resp.meta || { page, pageSize, total: data.length, filtered: data.length };
+    return { data, meta };
+  }
+  // 前端回退
+  const raw = await apiGet<unknown[]>(`/submissions${problemId ? `?problemId=${encodeURIComponent(problemId)}` : ''}`);
+  let list: SubmissionItem[] = raw.map(r => safeParseOrThrow(SubmissionItemSchema, r) as SubmissionItem);
   const total = list.length;
-  if (params.status) list = list.filter(s => s.status.toLowerCase() === params.status!.toLowerCase());
-  if (params.language) list = list.filter(s => (s.language || '').toLowerCase() === params.language!.toLowerCase());
+  if (status) list = list.filter(s => s.status.toLowerCase() === status.toLowerCase());
+  if (language) list = list.filter(s => (s.language || '').toLowerCase() === language.toLowerCase());
   const filtered = list.length;
-  const page = params.page || 1;
-  const pageSize = params.pageSize || 20;
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
-  return {
-    data: list.slice(start, end),
-    meta: { page, pageSize, total, filtered }
-  };
+  return { data: list.slice(start, end), meta: { page, pageSize, total, filtered } };
 }
 
 export function useSubmissions(params: UseSubmissionsParams) {

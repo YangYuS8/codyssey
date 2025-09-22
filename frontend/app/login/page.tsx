@@ -27,8 +27,9 @@ export default function LoginPage() {
     try {
       await login(values.username, values.password);
       router.push('/problems');
-    } catch (err: any) {
-      setError('username', { message: err?.message || '登录失败' });
+    } catch (err: unknown) {
+      const message = (err as { message?: string })?.message || '登录失败';
+      setError('username', { message });
     }
   };
 

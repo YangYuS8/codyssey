@@ -1,6 +1,7 @@
 import React from 'react';
 import {useParams, useRouter} from 'next/navigation';
 import {useSubmission} from '../../../src/hooks/useSubmission';
+import type { SubmissionDetail } from '@/src/hooks/useSubmission';
 import { useSubmissionEvents } from '@/src/hooks/useSubmissionEvents';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -14,14 +15,37 @@ export default function SubmissionDetailPage() {
   const params = useParams<{id: string}>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const {data, isLoading, error} = useSubmission(params?.id);
+  const [sseConnected, setSseConnected] = React.useState(false);
+  const {data, isLoading, error} = useSubmission(params?.id, { enablePolling: !sseConnected });
   useSubmissionEvents({
     submissionId: params?.id,
     enabled: !!params?.id && !!data && !['ACCEPTED','REJECTED','FAILED','CANCELLED','ERROR','COMPLETED'].includes(data.status.toUpperCase()),
     onEvent: (evt) => {
       if (!params?.id) return;
-      if (evt.type === 'status_update' || evt.type === 'judge_run_update' || evt.type === 'completed') {
-        // 触发重新获取或乐观更新
+      setSseConnected(true);
+      if (evt.type === 'status_update') {
+        queryClient.setQueryData(['submission', params.id], (prev: SubmissionDetail | undefined) => {
+          if (!prev) return prev;
+          const status = (evt.payload as { status?: string } | undefined)?.status;
+          return status ? { ...prev, status } : prev;
+        });
+      } else if (evt.type === 'judge_run_update') {
+        queryClient.setQueryData(['submission', params.id], (prev: SubmissionDetail | undefined) => {
+          if (!prev) return prev;
+          const incoming = (evt.payload as { judgeRun?: { id: string } } | undefined)?.judgeRun;
+          if (!incoming) return prev;
+          const existing = prev.judgeRuns || [];
+          const idx = existing.findIndex(r => r.id === incoming.id);
+          let nextRuns;
+          if (idx >= 0) {
+            nextRuns = [...existing];
+            nextRuns[idx] = { ...existing[idx], ...incoming };
+          } else {
+            nextRuns = [...existing, incoming];
+          }
+          return { ...prev, judgeRuns: nextRuns };
+        });
+      } else if (evt.type === 'completed') {
         queryClient.invalidateQueries({ queryKey: ['submission', params.id] });
       }
     }

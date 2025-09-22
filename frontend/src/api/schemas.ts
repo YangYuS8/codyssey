@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import { SchemaValidationError } from '@/src/types/api';
 
 // Problem
 const nullableToOptional = <T extends z.ZodTypeAny>(schema: T) =>
@@ -21,8 +22,8 @@ export const SubmissionItemSchema = z.object({
   problemId: z.string(),
   userId: z.string(),
   status: z.string(),
-  score: nullableToOptional(z.number()),
-  language: nullableToOptional(z.string()),
+  score: nullableToOptional(z.number()).transform(v => v === undefined ? undefined : v),
+  language: nullableToOptional(z.string()).transform(v => v === undefined ? undefined : v),
   createdAt: z.string(),
   updatedAt: z.string().optional(),
   version: z.number().optional(),
@@ -49,10 +50,7 @@ export type SubmissionDetail = z.infer<typeof SubmissionDetailSchema>;
 export function safeParseOrThrow<T>(schema: z.ZodType<T>, data: unknown): T {
   const r = schema.safeParse(data);
   if (!r.success) {
-    // 抛出可追踪的结构化错误（后续可扩展专用错误类型）
-    const e = new Error('SCHEMA_VALIDATION_FAILED');
-    (e as any).issues = r.error.issues;
-    throw e;
+    throw new SchemaValidationError(r.error.issues);
   }
   return r.data;
 }

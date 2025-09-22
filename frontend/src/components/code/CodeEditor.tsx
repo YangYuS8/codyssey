@@ -4,10 +4,18 @@ import dynamic from 'next/dynamic';
 import { Spinner } from '../ui/spinner';
 
 // 动态导入 Monaco，避免 SSR 报错
-// 使用 any 绕过动态组件的类型限制（保持简单，可后续细化）
-const Monaco: any = dynamic(async () => {
+type MonacoComponent = React.ComponentType<{
+  value: string;
+  language: string;
+  theme?: string;
+  options?: Record<string, unknown>;
+  onChange?: (value: string | undefined) => void;
+  height?: number | string;
+}>;
+
+const Monaco = dynamic(async () => {
   const mod = await import('@monaco-editor/react');
-  return mod.default;
+  return mod.default as MonacoComponent;
 }, {
   ssr: false,
   loading: () => <div className="h-80 flex items-center justify-center border rounded"><Spinner /></div>

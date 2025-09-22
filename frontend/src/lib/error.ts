@@ -1,15 +1,16 @@
 import { ApiError } from '../api/client';
+import { SchemaValidationError } from '@/src/types/api';
 
 // 用户可读消息映射层
 // 约定：ApiError.code 为后端统一错误码；如果后端演进只需在此集中修改
 
 export function toUserMessage(err: unknown): { title: string; description?: string } {
   if (!err) return { title: '未知错误' };
-  if ((err as any).issues) {
+  if (err instanceof SchemaValidationError) {
     return { title: '数据格式错误', description: '返回数据结构与前端期望不一致' };
   }
   const e = err as ApiError;
-  if (!e.code) return { title: '请求失败', description: (e as any).message || '未知错误' };
+  if (!e.code) return { title: '请求失败', description: (e as { message?: string }).message || '未知错误' };
   switch (e.code) {
     case 'UNAUTHORIZED':
       return { title: '未登录', description: '请重新登录' };

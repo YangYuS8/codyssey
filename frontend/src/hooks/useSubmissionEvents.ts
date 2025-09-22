@@ -1,10 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
 
+export interface SubmissionEventPayloadStatus { status: string }
+export interface SubmissionEventPayloadJudgeRun { judgeRun: { id: string; status: string; durationMs?: number; createdAt?: string } }
+export type SubmissionEventPayload = SubmissionEventPayloadStatus | SubmissionEventPayloadJudgeRun | Record<string, unknown> | undefined;
+
 export interface SubmissionEvent {
   type: string; // e.g. status_update, judge_run_update, completed
   submissionId: string;
-  payload?: any;
+  payload?: SubmissionEventPayload;
   ts: number;
 }
 
@@ -22,7 +26,7 @@ export function useSubmissionEvents(opts: UseSubmissionEventsOptions) {
   const [connected, setConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<SubmissionEvent | null>(null);
   const esRef = useRef<EventSource | null>(null);
-  const reconnectTimer = useRef<any>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!enabled || !submissionId) return;
@@ -36,16 +40,16 @@ export function useSubmissionEvents(opts: UseSubmissionEventsOptions) {
       es.onopen = () => setConnected(true);
       es.onmessage = (e) => {
         try {
-          const data = JSON.parse(e.data);
+          const data: Record<string, unknown> = JSON.parse(e.data);
           const evt: SubmissionEvent = {
-            type: data.type || 'unknown',
-            submissionId: data.submissionId || submissionId,
-            payload: data.payload,
+            type: (data.type as string) || 'unknown',
+            submissionId: ((data.submissionId as string) || submissionId)!,
+            payload: data.payload as SubmissionEventPayload,
             ts: Date.now(),
           };
-            setLastEvent(evt);
-            onEvent?.(evt);
-        } catch (_) {
+          setLastEvent(evt);
+          onEvent?.(evt);
+        } catch {
           // ignore parse errors
         }
       };
