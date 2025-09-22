@@ -2,7 +2,7 @@ import React from 'react';
 import {useParams, useRouter} from 'next/navigation';
 import {useSubmission} from '../../../src/hooks/useSubmission';
 import type { SubmissionDetail } from '@/src/hooks/useSubmission';
-import { useSubmissionEvents } from '@/src/hooks/useSubmissionEvents';
+import { useSubmissionEvents, SubmissionEventType } from '@/src/hooks/useSubmissionEvents';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {Button} from '../../../src/components/ui/button';
@@ -19,17 +19,17 @@ export default function SubmissionDetailPage() {
   const {data, isLoading, error} = useSubmission(params?.id, { enablePolling: !sseConnected });
   useSubmissionEvents({
     submissionId: params?.id,
-    enabled: !!params?.id && !!data && !['ACCEPTED','REJECTED','FAILED','CANCELLED','ERROR','COMPLETED'].includes(data.status.toUpperCase()),
+  enabled: !!params?.id && !!data && !['ACCEPTED','REJECTED','FAILED','CANCELLED','ERROR','COMPLETED'].includes(data.status.toUpperCase()),
     onEvent: (evt) => {
       if (!params?.id) return;
       setSseConnected(true);
-      if (evt.type === 'status_update') {
+  if (evt.type === SubmissionEventType.STATUS_UPDATE || evt.type === SubmissionEventType.RUNNING || evt.type === SubmissionEventType.QUEUED) {
         queryClient.setQueryData(['submission', params.id], (prev: SubmissionDetail | undefined) => {
           if (!prev) return prev;
           const status = (evt.payload as { status?: string } | undefined)?.status;
           return status ? { ...prev, status } : prev;
         });
-      } else if (evt.type === 'judge_run_update') {
+  } else if (evt.type === SubmissionEventType.JUDGE_RUN_UPDATE) {
         queryClient.setQueryData(['submission', params.id], (prev: SubmissionDetail | undefined) => {
           if (!prev) return prev;
           const incoming = (evt.payload as { judgeRun?: { id: string } } | undefined)?.judgeRun;
@@ -45,7 +45,7 @@ export default function SubmissionDetailPage() {
           }
           return { ...prev, judgeRuns: nextRuns };
         });
-      } else if (evt.type === 'completed') {
+  } else if (evt.type === SubmissionEventType.COMPLETED) {
         queryClient.invalidateQueries({ queryKey: ['submission', params.id] });
       }
     }

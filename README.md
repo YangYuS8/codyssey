@@ -62,14 +62,10 @@ docker compose up --build -d
 
 ---
 
-> 更完整的系统架构、开发模式、路线图与 API 文档请参见 `docs/` 目录：
-> - `architecture.md`
-> - `project-structure.md`
-> - `development.md`
-> - `go-backend.md`
-> - `go-backend-api.md`
-> - `metrics.md`
-> - `roadmap.md`
+> 更完整的系统架构、开发模式、路线图与 API 文档请参见 `docs/` 及子目录：
+> - 通用：`architecture.md`, `project-structure.md`, `development.md`, `roadmap.md`
+> - 前端：`frontend/overview.md` 等模块化文件
+> - 后端：`backend/overview.md`, `backend/architecture.md`, `backend/api.md`, `backend/domain-model.md`, `backend/metrics.md`, `backend/observability.md`
 
 ---
 

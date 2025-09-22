@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
 
+export enum SubmissionEventType {
+  STATUS_UPDATE = 'status_update',
+  JUDGE_RUN_UPDATE = 'judge_run_update',
+  COMPLETED = 'completed',
+  QUEUED = 'queued',
+  RUNNING = 'running'
+}
 export interface SubmissionEventPayloadStatus { status: string }
 export interface SubmissionEventPayloadJudgeRun { judgeRun: { id: string; status: string; durationMs?: number; createdAt?: string } }
 export type SubmissionEventPayload = SubmissionEventPayloadStatus | SubmissionEventPayloadJudgeRun | Record<string, unknown> | undefined;

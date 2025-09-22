@@ -28,6 +28,15 @@ Phase 1 新增：
 - SSE Hook：`useSubmissionEvents` 监听提交状态，实时刷新详情；连接失败自动重连，失联时仍由轮询兜底
 - 表单体系：`react-hook-form` + `zodResolver` + 统一表单组件（后续可快速扩展其他表单）
 
+快速强化（Five Quick Actions 已完成）：
+- Token 刷新：401 时自动调用 `/auth/refresh`，成功后重放一次原请求（仅一次，不递归）。
+- 请求超时：默认 `12s`（`NEXT_PUBLIC_API_TIMEOUT_MS` 可配置），超时报错代码 `TIMEOUT`。
+- GET 指数退避重试：对 5xx 与网络错误最多 2 次（300ms / 600ms）。
+- 角色权限：`middleware.ts` 读取 `roles` Cookie，`useRequireRole(role)` 客户端二次保护；支持 `ADMIN_PREFIXES`（示例 `/admin`）。
+- SSE 事件枚举：`SubmissionEventType`（`status_update | judge_run_update | completed | queued | running`），增量更新 React Query 缓存而非整条重新请求。
+- 轮询/实时协调：SSE 连接成功后关闭轮询，结束事件（`completed` 或终态）后最后一次无效化保证终态一致。
+- 错误体系：统一 Envelope 解析，401 触发 `window` 事件 `auth:unauthorized` 以集中登出处理。
+
 ## 目录结构（节选）
 ```
 frontend/
@@ -53,6 +62,7 @@ frontend/
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_SERVER_PAGINATION=false   # 打开后直接请求服务端分页
 NEXT_PUBLIC_LOG_WEB_VITALS=false      # 打开后在控制台输出 Web Vitals
+NEXT_PUBLIC_API_TIMEOUT_MS=12000      # 请求超时时间 (ms)
 ```
 
 ## 启动
@@ -72,14 +82,15 @@ pnpm dev
 > 注意：当前登录接口依赖后端已有 `/auth/login`，请确保后端已运行并允许跨域（若同域部署则无需额外配置）。
 
 ## 下一步建议
-1. 后端统一返回分页 envelope（确认字段：`data[]`, `meta: { page,pageSize,total,filtered }`）后移除前端回退路径。
-2. Access Token 换成 HttpOnly Cookie（前端移除 localStorage 持久化）。
-3. Refresh Token & 静默续期（中间件 + 客户端 401 重试）。
-4. SSE 事件类型细化（区分 judge run 增量 vs 最终结果，支持乐观更新局部列表）。
-5. E2E：增加提交完整流程、错误态、SSE 实时状态断言。
-6. 角色/权限：UI 级别禁用与后端鉴权对齐。
-7. 统一日志/埋点：上报前端错误与交互事件。
-8. Monaco: 支持自动补全 / LSP 代理（需后端沙箱 API）。
+1. 后端确认并稳定分页 envelope（当前已用 fallback）后删除客户端模拟路径。
+2. 完整迁移为 HttpOnly Cookie 会话：前端不再持久化 access_token，仅监听刷新结果。
+3. 静默定时刷新：在 token 剩余有效期阈值内提前刷新（避免临界 401）。
+4. SSE 扩展：支持批量 judge run append / 错误事件 / 取消事件；列表页增量更新（而非 detail 页面刷新）。
+5. E2E 场景扩展：提交生命周期（Queued→Running→Completed），超时 / 失败 / 冲突，角色访问控制。
+6. UI 权限裁剪：基于 roles 隐藏按钮和导航项，集中权限映射配置。
+7. 前端监控：错误上报（window.onerror + unhandledrejection）+ Web Vitals / 关键交互埋点上报。
+8. Monaco 增强：本地格式化（prettier worker）+ LSP / 代码片段管理。
+9. API 客户端：支持并发 请求取消（合并外部 signal）和缓存层失效策略可配置。
 
 ## 分页 & URL 同步说明
 开启服务端分页：
@@ -117,11 +128,36 @@ NEXT_PUBLIC_LOG_WEB_VITALS=true
 ```
 即可在浏览器控制台看到 FCP / LCP / CLS / INP / TTFB / FID 指标。后续可用 `navigator.sendBeacon` 上报到后端。
 
-## SSE 实时更新
-Hook：`useSubmissionEvents(submissionId)` -> 建立 `EventSource /submissions/{id}/events`。
-- 断线自动重连（默认 5s）
-- 与轮询共存：SSE 连接成功后刷新数据，终态后自动停止轮询；若 SSE 不可用继续轮询兜底。
-- 可扩展事件：`status_update`, `judge_run_update`, `completed`。
+## 实时更新（简版）
+详细设计（事件模型 / 重连 / 增量策略）参见 `docs/frontend/realtime.md`。
+这里只保留最简使用：
+```ts
+const { connected, lastEvent } = useSubmissionEvents({ submissionId });
+```
+轮询关闭逻辑：`enablePolling = !connected`。
+
+## 认证与权限（简版）
+完整说明见：`docs/frontend/auth.md`。
+精简：middleware 负责 Cookie + 角色前缀守卫；客户端 Hook 再校验；401 -> 自动刷新 -> 失败登出。
+
+## API 客户端（简版）
+细节见：`docs/frontend/api-client.md`。
+要点：超时 + 刷新 + GET 重试 + Envelope 解析 + ApiError 语义字段。
+
+## useRequireRole 用法示例
+```
+import { useRequireRole } from '@/src/hooks/useRequireRole';
+
+export default function AdminPage() {
+  useRequireRole('ADMIN');
+  return <div>Only admin content</div>;
+}
+```
+
+或在组件中条件渲染：
+```
+{roles.includes('ADMIN') && <AdminPanel />}
+```
 
 
 

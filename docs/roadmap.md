@@ -15,6 +15,7 @@
 - 版本化数据库迁移（goose）+ AutoMigrate 开关
 - golangci-lint 集成 & 配置清理
 - 文档结构初步重组（导航 / domain-model / openapi 维护策略）
+- 前端：SSE 实时更新 + 轮询协同、Token 刷新、GET 重试、角色守卫、统一 API 客户端超时
 
 ### 进行中 / 近期 (Next 4–6 周)
 - 分页 / 过滤 / 排序通用参数库
@@ -23,6 +24,7 @@
 - OpenAPI 自动化策略评估（swag 注释 vs oapi-codegen 契约优先）
 - AI 题目生成 API 外部供应商接入（第一家）
 - Property-based 状态机测试（Submission / JudgeRun 不变量）
+- 前端：Cookie 会话迁移 + 静默刷新调度 + 列表级 SSE 增量
 
 ### 规划 (MVP-2)
 - Judge0 对接封装 (执行 + 资源限制映射)
@@ -30,6 +32,7 @@
 - 评测结果细粒度（测试点结果存储与聚合）
 - Observability 扩展：DB / Sandbox 耗时指标
 - OpenAPI 代码生成 / 动态差异校验脚本
+- 前端：实时列表 summary 广播、<Authorized /> 组件封装、Error Boundary + 上报管线
 
 ### 中期 (MVP-3)
 - AI 质量评估与重复检测
@@ -37,6 +40,7 @@
 - 结果缓存与快速重判
 - 社区交互：撤回 / 讨论区 / 标签系统
 - 高级权限/审核流（题目上架审批）
+- 前端：LSP/自动补全、交互追踪分析仪表盘
 
 ### 长期 (SCALE)
 - 全链路 Tracing (OpenTelemetry + 采样策略)

@@ -24,6 +24,7 @@
 | CONFLICT | 409 | 并发写入冲突（乐观锁失败） | Submission 版本号不匹配；JudgeRun 条件更新被抢占 |
 | PAYLOAD_TOO_LARGE | 413 | 请求体超过全局限制 | 由全局 BodyLimit 中间件返回 |
 | CODE_TOO_LONG | 400 | 代码字段超过配置上限 | Create Submission 时校验 `MAX_SUBMISSION_CODE_BYTES` |
+| TIMEOUT | (0 或 504) | 前端 apiFetch 超时（客户端生成） | 非后端返回；用于统一提示重试 |
 
 ## 使用指引
 
@@ -75,4 +76,11 @@ HTTP/1.1 400 Bad Request
   "data": null,
   "error": { "code": "INVALID_TRANSITION", "message": "cannot start: not in queued status" }
 }
+
+## 前端补充
+- 前端会将 envelope 中 `error.code` 转换为 `ApiError` 并附带布尔标记（如 `conflict`, `unauthorized`）。
+- 超时产生的 `TIMEOUT` 代码仅存在于前端失败场景，不需要后端实现。
+- 401 刷新失败后派发 `auth:unauthorized`，触发登出逻辑，避免界面进入错误中间态。
+
+参见：`docs/frontend/api-client.md`。
 ```

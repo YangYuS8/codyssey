@@ -1,6 +1,6 @@
-# Metrics 监控说明
+<!-- 合并说明：本文件已整合原根目录 metrics.md 全量内容，成为唯一指标文档。 -->
 
-> 提示：后续计划将本文件与日志 / Tracing 统一归并为 `observability.md`，本文件暂作为指标详细说明的独立入口。
+# Metrics 监控说明
 
 本文件描述当前 Go 后端已暴露的 Prometheus 指标、抓取方式与后续可扩展点。
 
@@ -35,24 +35,24 @@
 在 Prometheus `prometheus.yml`:
 ```yaml
 scrape_configs:
-  - job_name: codyssey-backend
-    metrics_path: /metrics
-    scrape_interval: 15s
-    static_configs:
-      - targets: ["backend-service:8080"]  # 或部署中的实际主机 / K8s Service
+	- job_name: codyssey-backend
+		metrics_path: /metrics
+		scrape_interval: 15s
+		static_configs:
+			- targets: ["backend-service:8080"]
 ```
-若使用 Kubernetes，可改为：
+Kubernetes：
 ```yaml
-  - job_name: codyssey-backend
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_label_app]
-        action: keep
-        regex: codyssey-backend
-      - source_labels: [__meta_kubernetes_pod_container_port_number]
-        action: keep
-        regex: "8080"
+	- job_name: codyssey-backend
+		kubernetes_sd_configs:
+			- role: pod
+		relabel_configs:
+			- source_labels: [__meta_kubernetes_pod_label_app]
+				action: keep
+				regex: codyssey-backend
+			- source_labels: [__meta_kubernetes_pod_container_port_number]
+				action: keep
+				regex: "8080"
 ```
 
 ## 4. 常见查询 (PromQL)
@@ -63,21 +63,21 @@ scrape_configs:
 | 路由 P95 | `histogram_quantile(0.95, sum by (le, route) (rate(codyssey_http_request_duration_seconds_bucket[5m])))` | 按路由分位延迟 |
 | In-flight | `codyssey_http_in_flight_requests` | 当前并发 |
 | Submission 状态跳转速率 | `sum(rate(codyssey_submission_status_transitions_total[5m]))` | 状态机活跃度 |
-| JudgeRun 从 queued -> running | `rate(codyssey_judge_run_status_transitions_total{from="queued",to="running"}[5m])` | 调度吞吐 |
+| JudgeRun queued -> running | `rate(codyssey_judge_run_status_transitions_total{from="queued",to="running"}[5m])` | 调度吞吐 |
 
 ## 5. Grafana 面板建议
 | 面板 | 建议类型 | 关键指标 |
 | ---- | ------- | -------- |
 | 请求延迟 | Heatmap / Time series | `codyssey_http_request_duration_seconds` 分位 |
-| 请求量 & 错误 | Stacked Bar / Time series | 成功 vs 4xx vs 5xx |
+| 请求量 & 错误 | Stacked / Time series | 成功 vs 4xx vs 5xx |
 | In-flight | SingleStat / Gauge | `codyssey_http_in_flight_requests` |
 | 状态机活跃度 | Time series | Submission / JudgeRun transitions 速率 |
-| 异常报警 | Alert rules | 高 5xx 比例、P99 延迟飙升、transition 异常减少或暴增 |
+| 异常报警 | Alert rules | 高 5xx 比例、P99 延迟飙升、transition 异常变化 |
 
 ## 6. 状态机监控要点
-- 若 `queued -> running` transition 速率明显下降：可能是调度阻塞或 Worker 饱和。
-- 若 `running -> finished` 少而 `running -> failed` 或中间停滞：内部执行组件异常。
-- 可加派生报警：特定窗口内某 `to="failed"` 占比 > X%。
+- `queued -> running` 速率下降：调度阻塞 / Worker 饱和
+- `running -> failed` 占比升高：沙箱或题目数据异常
+- `submission_conflicts_total` 升高：热点或重试策略不当
 
 ## 7. 扩展点（未来可添加）
 | 类别 | 指标建议 | 备注 |
@@ -85,28 +85,29 @@ scrape_configs:
 | Submission 首字节延迟 | `submission_enqueue_latency_seconds` | 提交 -> 第一次调度 |
 | DB 交互 | `db_query_duration_seconds`、`db_connections_in_use` | 包装 `pgx` 统计 |
 | 外部依赖 | `sandbox_exec_duration_seconds` | Judge0 / sandbox 耗时 |
-| 请求体大小级分布 | （可能）`request_body_bytes` Histogram | 若需要分析被拒绝前的典型请求体规模 |
+| 请求体大小分布 | `request_body_bytes` Histogram | 分析拒绝前的典型体量 |
 
 ## 8. 性能与开销
-当前指标全部为 Counter/Gauge/直方图（HTTP & JudgeRun），标签基数有限：
-- `route` 基数 ≈ 主要 API 数量（受限于使用 `c.FullPath()`，未包含查询参数）
-- 状态标签仅状态机有限集合
-- 风险较低，可安全在早期环境启用
+标签基数控制：
+- `route` 基数 ≈ 主要 API 数量（`c.FullPath()`）
+- 状态标签来自有限枚举
+- 当前无高基数动态标签（user_id 等）
 
-## 9. 常见问题 (FAQ)
+## 9. FAQ
 | 问题 | 说明 |
 | ---- | ---- |
-| 指标没有输出？ | 确认已调用 `metrics.Middleware()` 与 `metrics.Handler()` 注册；访问 `/metrics`。 |
-| 指标延迟不准 | 确认部署未发生时钟漂移；必要时统一 NTP。 |
-| 直方图桶不匹配 | 可在代码中调整 `Buckets`；变更会导致历史对比不兼容。 |
-| 标签爆炸风险？ | 当前无动态高基数标签（如用户 ID），安全。 |
+| 指标没有输出？ | 确认已注册中间件与 Handler，访问 `/metrics`。 |
+| 延迟不准 | 检查时钟 / NTP，同步时间。 |
+| 桶不匹配 | 调整代码中 `Buckets`，注意历史不可比。 |
+| 标签爆炸风险？ | 当前安全，新增标签需评审。 |
 
 ## 10. 版本策略
-未来新增指标：向后兼容（新增不删）。重命名/删除需在发布说明中显式标记 BREAKING，并提供迁移指引。
+新增指标：向后兼容（只增不删）。
+重命名/删除：标注 BREAKING，发布迁移指引。
 
 ---
 附加说明：
-1. 请求体/代码大小限制（`MAX_REQUEST_BODY_BYTES`、`MAX_SUBMISSION_CODE_BYTES`）当前仅通过 HTTP 413（`PAYLOAD_TOO_LARGE`）与业务层 400/409 错误可观测，尚未单独暴露指标；若后续需要分布分析可新增 Histogram。
-2. 冲突计数器已实现（早期文档列为扩展项），用于直观识别是否需要扩展重试/指数退避或分片策略。
+1. 请求体 / 代码大小限制目前仅通过 HTTP 错误可观测（413/400/409），若需分布增加 Histogram。
+2. 冲突计数器已实现，用于识别重试或分片需求。
 
-最后更新：2025-09-21
+最后更新：2025-09-22（合并版）

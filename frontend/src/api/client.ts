@@ -19,6 +19,23 @@ interface RequestOptions<B = unknown> {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+const DEFAULT_TIMEOUT = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || 12000);
+const MAX_GET_RETRIES = 2;
+
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const res = await fetch(API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    const token = json?.data?.access_token || json?.access_token;
+    if (token && typeof window !== 'undefined') {
+      localStorage.setItem('access_token', token);
+    }
+    return token || null;
+  } catch {
+    return null;
+  }
+}
 
 function buildError(code: string, status: number, message: string): ApiError {
   const e = new Error(message) as ApiError;
@@ -47,37 +64,74 @@ export async function apiFetch<T, B = unknown>(path: string, opts: RequestOption
     }
   }
 
-  const res = await fetch(API_BASE + path, {
-    method,
-    body: body ? JSON.stringify(body) : undefined,
-    headers: finalHeaders,
-    signal,
-    credentials: 'include',
-  });
-
-  const contentType = res.headers.get('content-type');
-  let json: unknown = null;
-  if (contentType && contentType.includes('application/json')) {
-    json = await res.json().catch(() => null);
-  } else if (!res.ok) {
-    throw buildError('UNKNOWN', res.status, `HTTP ${res.status}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+  const mergedSignal = signal
+    ? new AbortController()
+    : controller; // simple approach (if external signal needed could compose)
+  try {
+    const res = await fetch(API_BASE + path, {
+      method,
+      body: body ? JSON.stringify(body) : undefined,
+      headers: finalHeaders,
+      signal: mergedSignal.signal || controller.signal,
+      credentials: 'include',
+    });
+    clearTimeout(timeout);
+    const contentType = res.headers.get('content-type');
+    let json: unknown = null;
+    if (contentType && contentType.includes('application/json')) {
+      json = await res.json().catch(() => null);
+    } else if (!res.ok) {
+      throw buildError('UNKNOWN', res.status, `HTTP ${res.status}`);
+    }
+    const envelope = json as { data?: T; error?: { code?: string; message?: string } } | null;
+    if (res.ok) {
+      return (envelope && envelope.data !== undefined ? envelope.data : (json as T)) as T;
+    }
+    // 401 尝试刷新一次（仅在未刷新过）
+    if (res.status === 401 && auth) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        finalHeaders['Authorization'] = `Bearer ${refreshed}`;
+        return apiFetch<T, B>(path, { ...opts, headers: finalHeaders, auth });
+      }
+    }
+    const code = envelope?.error?.code || 'UNKNOWN';
+    const message = envelope?.error?.message || `HTTP ${res.status}`;
+    const err = buildError(code, res.status, message);
+    if (err.unauthorized && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    }
+    throw err;
+  } catch (e: any) {
+    clearTimeout(timeout);
+    if (e?.name === 'AbortError') {
+      throw buildError('TIMEOUT', 0, '请求超时');
+    }
+    throw e;
   }
-  const envelope = json as { data?: T; error?: { code?: string; message?: string } } | null;
-  if (res.ok) {
-    return (envelope && envelope.data !== undefined ? envelope.data : (json as T)) as T;
-  }
-  const code = envelope?.error?.code || 'UNKNOWN';
-  const message = envelope?.error?.message || `HTTP ${res.status}`;
-  const err = buildError(code, res.status, message);
-  if (err.unauthorized && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-  }
-  throw err;
 }
 
 // 常用 GET 简化
 export function apiGet<T>(path: string, opts: Omit<RequestOptions<never>, 'method' | 'body'> = {}) {
-  return apiFetch<T>(path, { ...opts, method: 'GET' });
+  // GET 重试封装
+  let attempt = 0;
+  const exec = async (): Promise<T> => {
+    try {
+      return await apiFetch<T>(path, { ...opts, method: 'GET' });
+    } catch (e: any) {
+      const retriable = e?.httpStatus && e.httpStatus >= 500;
+      if (retriable && attempt < MAX_GET_RETRIES) {
+        attempt++;
+        const backoff = 300 * Math.pow(2, attempt - 1);
+        await new Promise(r => setTimeout(r, backoff));
+        return exec();
+      }
+      throw e;
+    }
+  };
+  return exec();
 }
 
 export function apiPost<T, B = unknown>(path: string, body?: B, opts: Omit<RequestOptions<B>, 'method' | 'body'> = {}) {

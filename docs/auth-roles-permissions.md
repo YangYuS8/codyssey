@@ -194,3 +194,11 @@ func Require(perms ...Permission) gin.HandlerFunc {
 
 ---
 本文件为初稿，实施前可在 issue 中补充业务实际差异与约束。
+
+### 前端协同说明
+前端当前已实现：
+- `middleware.ts` 读取 `auth_token` + `roles` Cookie 进行基础路径前缀守卫（示例：`/admin`）。
+- `useRequireRole(role)` Hook 客户端二次校验，提升体验（可用于延迟加载/展示 403 提示）。
+- 401 自动刷新：`/auth/refresh` 成功则重放原请求，失败派发 `auth:unauthorized` 事件触发统一登出。
+
+文档参考：`docs/frontend/auth.md` 获取刷新流与守卫实现细节。
