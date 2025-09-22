@@ -1,42 +1,47 @@
 "use client";
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/src/auth/auth-context';
 import { Button } from '@/src/components/ui/button';
-import { Input } from '@/src/components/ui/input';
 import { Spinner } from '@/src/components/ui/spinner';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { FormField, FormInput } from '@/src/components/ui/form';
+
+const LoginSchema = z.object({
+  username: z.string().min(1, '请输入用户名'),
+  password: z.string().min(1, '请输入密码'),
+});
+type LoginForm = z.infer<typeof LoginSchema>;
 
 export default function LoginPage() {
   const { login, loading } = useAuth();
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const { register, handleSubmit, formState: { errors }, setError } = useForm<LoginForm>({
+    resolver: zodResolver(LoginSchema),
+    mode: 'onBlur'
+  });
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  const onSubmit = async (values: LoginForm) => {
     try {
-      await login(username, password);
+      await login(values.username, values.password);
       router.push('/problems');
     } catch (err: any) {
-      setError(err?.message || '登录失败');
+      setError('username', { message: err?.message || '登录失败' });
     }
-  }
+  };
 
   return (
     <div className="mx-auto max-w-sm py-20 w-full">
       <h1 className="text-2xl font-semibold mb-6">登录</h1>
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label className="block mb-1 text-sm">用户名</label>
-          <Input value={username} onChange={e => setUsername(e.target.value)} required autoFocus />
-        </div>
-        <div>
-          <label className="block mb-1 text-sm">密码</label>
-          <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <FormField label="用户名" requiredMark error={errors.username}>
+          <FormInput autoFocus placeholder="用户名" register={register('username')} />
+        </FormField>
+        <FormField label="密码" requiredMark error={errors.password}>
+          <FormInput type="password" placeholder="密码" register={register('password')} />
+        </FormField>
         <Button type="submit" disabled={loading} className="w-full">
           {loading && <Spinner className="mr-2" />} 登录
         </Button>

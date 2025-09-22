@@ -2,15 +2,14 @@ import {useQuery} from '@tanstack/react-query';
 import {apiGet, ApiError} from '../api/client';
 import {ProblemSchema, safeParseOrThrow, Problem} from '../api/schemas';
 
-type ProblemDetail = Problem;
-
-async function fetchProblem(id: string): Promise<ProblemDetail> {
+async function fetchProblem(id: string): Promise<Problem> {
   const raw = await apiGet(`/problems/${id}`);
-  return safeParseOrThrow(ProblemSchema, raw);
+  const parsed = safeParseOrThrow(ProblemSchema, raw) as Problem;
+  return parsed;
 }
 
 export function useProblem(id: string | undefined) {
-  return useQuery<ProblemDetail, ApiError>({
+  return useQuery<Problem, ApiError>({
     queryKey: ['problem', id],
     queryFn: () => fetchProblem(id!),
     enabled: !!id,

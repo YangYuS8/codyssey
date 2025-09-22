@@ -1,19 +1,37 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSubmissions } from '../../src/hooks/useSubmissions';
 import { truncate } from '../../src/lib/utils';
 import { Pagination } from '@/src/components/ui/pagination';
+import { StatusBadge } from '@/src/components/ui/status-badge';
+import { useRequireAuth } from '@/src/hooks/useRequireAuth';
+import { Skeleton } from '@/src/components/ui/skeleton';
 
 export default function SubmissionsPage() {
-  const [page, setPage] = useState(1);
+  const sp = useSearchParams();
+  const router = useRouter();
+  const [page, setPage] = useState<number>(() => Number(sp.get('page') || 1));
   const [pageSize] = useState(15);
-  const [status, setStatus] = useState('');
-  const [language, setLanguage] = useState('');
-  const [problemId, setProblemId] = useState('');
+  const [status, setStatus] = useState(() => sp.get('status') || '');
+  const [language, setLanguage] = useState(() => sp.get('language') || '');
+  const [problemId, setProblemId] = useState(() => sp.get('problemId') || '');
   const {data, isLoading, error} = useSubmissions({ page, pageSize, status: status || undefined, language: language || undefined, problemId: problemId || undefined });
   const total = data?.meta.filtered || 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useRequireAuth();
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (page && page !== 1) params.set('page', String(page));
+    if (status) params.set('status', status);
+    if (language) params.set('language', language);
+    if (problemId) params.set('problemId', problemId);
+    const qs = params.toString();
+    const target = qs ? `/submissions?${qs}` : '/submissions';
+    router.replace(target, { scroll: false });
+  }, [page, status, language, problemId, router]);
 
   return (
     <div className="p-6 space-y-4">
@@ -52,7 +70,14 @@ export default function SubmissionsPage() {
             className="ml-auto"
         />
       </div>
-      {isLoading && <div className="text-sm">加载中...</div>}
+      {isLoading && (
+        <div className="space-y-3 min-h-[250px]">
+          <div className="text-sm">加载中...</div>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-full" />
+          ))}
+        </div>
+      )}
       {error && <div className="text-red-600 text-sm">加载失败: {error.message}</div>}
       {!isLoading && !error && (
         <div className="overflow-x-auto">
@@ -79,7 +104,7 @@ export default function SubmissionsPage() {
                   <td className="py-2 pr-4">
                     <Link href={`/problems/${s.problemId}`} className="text-blue-600 hover:underline">{truncate(s.problemId, 12)}</Link>
                   </td>
-                  <td className="py-2 pr-4">{s.status}</td>
+                  <td className="py-2 pr-4"><StatusBadge status={s.status} /></td>
                   <td className="py-2 pr-4">{s.score ?? '-'}</td>
                   <td className="py-2 pr-4">{s.language ?? '-'}</td>
                   <td className="py-2 pr-4 text-xs text-gray-500">{new Date(s.createdAt).toLocaleString()}</td>

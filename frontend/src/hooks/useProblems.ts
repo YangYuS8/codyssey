@@ -25,20 +25,47 @@ export interface UseProblemsParams {
 
 export function useProblems(params: UseProblemsParams = {}) {
   const { page = 1, pageSize = 20, search = '', difficulty } = params;
+  const serverPagination = process.env.NEXT_PUBLIC_SERVER_PAGINATION === 'true';
+
   return useQuery<ProblemListResponse>({
-    queryKey: ['problems', { page, pageSize, search, difficulty }],
+    queryKey: ['problems', { page, pageSize, search, difficulty, serverPagination }],
     queryFn: async () => {
-      // 暂时仍请求全部（后端分页对接前），然后在前端进行过滤 + 分页
+      if (serverPagination) {
+        const query = new URLSearchParams({
+          page: String(page),
+          pageSize: String(pageSize),
+          search: search || '',
+          ...(difficulty ? { difficulty } : {})
+        });
+        const resp = await apiGet<any>(`/problems?${query.toString()}`);
+        // 期望服务端返回 { data: [...], meta: {...} }
+        const items = Array.isArray(resp.data) ? resp.data : [];
+  const data: Problem[] = items.map((p: any) => {
+          const v = safeParseOrThrow(ProblemSchema, p) as any;
+          return {
+            id: v.id,
+            title: v.title,
+            description: v.description,
+            difficulty: v.difficulty,
+            tags: v.tags,
+            createdAt: v.createdAt,
+          } as Problem;
+        });
+        const meta = resp.meta || { page, pageSize, total: data.length, filtered: data.length };
+        return { data, meta };
+      }
+
+      // 前端回退逻辑：获取全部再过滤分页
       const all = await apiGet<any[]>(`/problems`);
       const normalized: Problem[] = all.map(p => {
         const v = safeParseOrThrow(ProblemSchema, p) as any;
         return {
           id: v.id,
-          title: v.title,
-          description: v.description,
-          difficulty: v.difficulty,
-          tags: v.tags,
-          createdAt: v.createdAt,
+            title: v.title,
+            description: v.description,
+            difficulty: v.difficulty,
+            tags: v.tags,
+            createdAt: v.createdAt,
         } as Problem;
       });
       let filtered = normalized;

@@ -3,13 +3,25 @@ import {useProblem} from '../../../src/hooks/useProblem';
 import {useParams, useRouter} from 'next/navigation';
 import Link from 'next/link';
 import {Button} from '../../../src/components/ui/button';
+import { Skeleton } from '@/src/components/ui/skeleton';
+import { useRequireAuth } from '@/src/hooks/useRequireAuth';
 
 export default function ProblemDetailPage() {
   const params = useParams<{id: string}>();
   const router = useRouter();
   const {data, isLoading, error} = useProblem(params?.id);
+  useRequireAuth();
 
-  if (isLoading) return <div className="p-6">加载中...</div>;
+  if (isLoading) return (
+    <div className="p-6 space-y-4 max-w-3xl">
+      <Skeleton className="h-8 w-72" />
+      <Skeleton className="h-5 w-24" />
+      <div className="flex gap-2">
+        {Array.from({ length: 4 }).map((_,i)=>(<Skeleton key={i} className="h-6 w-16" />))}
+      </div>
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
   if (error) {
     if (error.notFound) return <div className="p-6">题目不存在。</div>;
     return <div className="p-6 text-red-600">加载失败: {error.message}</div>;

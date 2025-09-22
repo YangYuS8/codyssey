@@ -1,18 +1,35 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/src/components/ui/button';
 import { Pagination } from '@/src/components/ui/pagination';
 import { useProblems } from '@/src/hooks/useProblems';
 import { Spinner } from '@/src/components/ui/spinner';
+import { useRequireAuth } from '@/src/hooks/useRequireAuth';
+import { Skeleton } from '@/src/components/ui/skeleton';
 
 export default function ProblemsPage() {
-  const [page, setPage] = useState(1);
+  const sp = useSearchParams();
+  const router = useRouter();
+  const [page, setPage] = useState<number>(() => Number(sp.get('page') || 1));
   const [pageSize] = useState(10);
-  const [search, setSearch] = useState('');
-  const [difficulty, setDifficulty] = useState<string | undefined>(undefined);
+  const [search, setSearch] = useState(() => sp.get('search') || '');
+  const [difficulty, setDifficulty] = useState<string | undefined>(() => sp.get('difficulty') || undefined);
   const { data, isLoading, error } = useProblems({ page, pageSize, search, difficulty });
+  useRequireAuth();
   const total = data?.meta.filtered || 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  // 同步到 URL（防抖可选，这里简单即时同步）
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (page && page !== 1) params.set('page', String(page));
+    if (search) params.set('search', search);
+    if (difficulty) params.set('difficulty', difficulty);
+    const qs = params.toString();
+    const target = qs ? `/problems?${qs}` : '/problems';
+    router.replace(target, { scroll: false });
+  }, [page, search, difficulty, router]);
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -44,9 +61,19 @@ export default function ProblemsPage() {
         </div>
         <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} className="ml-auto" />
       </div>
-      <div className="border rounded-md p-4">
+      <div className="border rounded-md p-4 min-h-[300px]">
         {isLoading && (
-          <div className="flex items-center gap-2 text-sm"><Spinner /> <span>加载中...</span></div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm"><Spinner /> <span>加载中...</span></div>
+            <Skeleton className="h-5 w-3/5" />
+            <Skeleton className="h-5 w-2/5" />
+            <Skeleton className="h-5 w-4/5" />
+            <div className="space-y-2 pt-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </div>
+          </div>
         )}
         {error && (
           <div className="text-sm text-red-600">加载失败：{(error as any)?.message || '未知错误'}</div>

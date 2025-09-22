@@ -9,6 +9,7 @@ import {ApiError} from '../../../../src/api/client';
 import {useToast} from '../../../../src/components/ui/toast';
 import {toUserMessage} from '../../../../src/lib/error';
 import {getTemplate, isSupportedLanguage, SupportedLanguage} from '../../../../src/lib/codeTemplates';
+import { useRequireAuth } from '@/src/hooks/useRequireAuth';
 
 const MAX_CODE_LENGTH = 100_000; // 与后端限制保持一致（若需同步可提取配置）
 
@@ -16,6 +17,7 @@ export default function SubmitPage() {
   const params = useParams<{id: string}>();
   const router = useRouter();
   const {data: problem} = useProblem(params?.id);
+  useRequireAuth();
   const {mutate, isPending, error} = useCreateSubmission();
   const {push: pushToast} = useToast();
 
